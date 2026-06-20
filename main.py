@@ -519,12 +519,26 @@ class GroupFriendPlugin(Star):
     async def _api_distillable_users(self):
         min_messages = self.config.get("min_distill_messages", 50)
         try:
+            # 直接 raw SQL 绕过 list_distillable_users 验证
+            conn = self.storage._conn
+            cursor = await conn.execute("SELECT COUNT(*) as total FROM messages")
+            row = await cursor.fetchone()
+            total = dict(row)["total"] if row else 0
+            logger.info(f"[群友蒸馏] raw SELECT COUNT(*) FROM messages = {total}")
+
+            cursor = await conn.execute(
+                "SELECT m.group_id, m.user_id, m.user_name, "
+                "COUNT(*) as cnt FROM messages m "
+                "GROUP BY m.group_id, m.user_id "
+                "ORDER BY cnt DESC LIMIT 5"
+            )
+            raw_rows = [dict(r) for r in await cursor.fetchall()]
+            logger.info(f"[群友蒸馏] raw GROUP BY returned {len(raw_rows)}: {raw_rows}")
+
             users = await self.storage.list_distillable_users(min_messages=0)
-            logger.info(f"[群友蒸馏] distillable raw query returned {len(users)} rows")
-            if users:
-                logger.info(f"[群友蒸馏] first row: group_id={users[0].get('group_id')}, user_id={users[0].get('user_id')}, user_name={users[0].get('user_name')}, cnt={users[0].get('message_count')}")
+            logger.info(f"[群友蒸馏] list_distillable_users returned {len(users)} rows")
         except Exception as e:
-            logger.error(f"[群友蒸馏] list_distillable_users failed: {e}", exc_info=True)
+            logger.error(f"[群友蒸馏] query failed: {e}", exc_info=True)
             return _json([])
         personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
 
