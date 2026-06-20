@@ -479,6 +479,13 @@ class GroupFriendPlugin(Star):
         try:
             from .chat_parser import parse_qq_export_json
 
+            # 存储群名称
+            if isinstance(data, dict):
+                chat_info = data.get("chatInfo") or {}
+                gname = str(chat_info.get("name", "")) if isinstance(chat_info, dict) else ""
+                if gname:
+                    await self.storage.update_group_state(group_id, group_name=gname)
+
             results = []
             for uid in user_ids:
                 user_name = uid
@@ -518,60 +525,27 @@ class GroupFriendPlugin(Star):
 
     async def _api_distillable_users(self):
         min_messages = self.config.get("min_distill_messages", 50)
-        try:
-            # 直接 raw SQL 绕过 list_distillable_users 验证
-            conn = self.storage._conn
-            cursor = await conn.execute("SELECT COUNT(*) as total FROM messages")
-            row = await cursor.fetchone()
-            total = dict(row)["total"] if row else 0
-            logger.info(f"[群友蒸馏] raw SELECT COUNT(*) FROM messages = {total}")
+        users = await self.storage.list_distillable_users(min_messages=0)
 
-            cursor = await conn.execute(
-                "SELECT m.group_id, m.user_id, m.user_name, "
-                "COUNT(*) as cnt FROM messages m "
-                "GROUP BY m.group_id, m.user_id "
-                "ORDER BY cnt DESC LIMIT 5"
-            )
-            raw_rows = [dict(r) for r in await cursor.fetchall()]
-            logger.info(f"[群友蒸馏] raw GROUP BY returned {len(raw_rows)}: {raw_rows}")
+        # 获取群名称映射
+        group_names = {}
+        for u in users:
+            gid = u["group_id"]
+            if gid not in group_names:
+                state = await self.storage.get_group_state(gid)
+                group_names[gid] = state.get("group_name", "") if state else ""
 
-            # test LEFT JOIN
-            cursor2 = await conn.execute(
-                "SELECT m.user_id, p.slug FROM messages m "
-                "LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id "
-                "GROUP BY m.group_id, m.user_id LIMIT 5"
-            )
-            join_rows = [dict(r) for r in await cursor2.fetchall()]
-            logger.info(f"[群友蒸馏] LEFT JOIN returned {len(join_rows)}: {join_rows}")
-
-            # test exact list_distillable_users SQL
-            cursor3 = await conn.execute(
-                "SELECT m.group_id, m.user_id, m.user_name, "
-                "COUNT(*) as message_count, MAX(m.timestamp) as last_msg_at, "
-                "p.slug, p.last_distill_at "
-                "FROM messages m "
-                "LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id "
-                "GROUP BY m.group_id, m.user_id "
-                "HAVING message_count >= 0 "
-                "ORDER BY message_count DESC"
-            )
-            full_rows = [dict(r) for r in await cursor3.fetchall()]
-            logger.info(f"[群友蒸馏] full query (no param) returned {len(full_rows)}: {full_rows}")
-
-            users = await self.storage.list_distillable_users(min_messages=0)
-            logger.info(f"[群友蒸馏] list_distillable_users returned {len(users)} rows")
-        except Exception as e:
-            logger.error(f"[群友蒸馏] query failed: {e}", exc_info=True)
-            return _json([])
         personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
 
         results = []
         for u in users:
             uid = u["user_id"]
             slug = u.get("slug") or ""
+            gid = u["group_id"]
             p = personas.get(slug, {})
             results.append({
-                "group_id": u["group_id"],
+                "group_id": gid,
+                "group_name": group_names.get(gid, ""),
                 "user_id": uid,
                 "user_name": u["user_name"],
                 "message_count": u["message_count"],
@@ -581,5 +555,4 @@ class GroupFriendPlugin(Star):
                 "last_distill_at": p.get("last_distill_at") or "",
                 "reached_threshold": u["message_count"] >= min_messages,
             })
-        logger.info(f"[群友蒸馏] distillable result: {len(results)} users")
         return _json(results)

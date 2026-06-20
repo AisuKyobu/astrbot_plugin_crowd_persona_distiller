@@ -116,14 +116,16 @@ function personaCard(p, isDistilled) {
 
 function distillableCard(u) {
     const lastTs = u.last_msg_at ? new Date(u.last_msg_at * 1000).toLocaleDateString("zh-CN") : "—";
-    const minNeeded = 50; // matches backend default
+    const gname = u.group_name ? `${esc(u.group_name)} (${esc(u.group_id)})` : `群 ${esc(u.group_id)}`;
+    const uname = u.user_name === u.user_id ? `${esc(u.user_name)} (QQ)` : esc(u.user_name);
+    const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
     return `
     <div class="card">
       <div class="card-info">
-        <div class="card-name">${esc(u.user_name)} <span class="user-id-tag">${esc(u.user_id)}</span></div>
+        <div class="card-name">${uname} <span class="user-id-tag">${esc(u.user_id)}</span></div>
         <div class="card-meta">
-          群 ${esc(u.group_id)} · ${u.message_count} 条 · 最后发言 ${lastTs}
+          ${gname} · ${u.message_count} 条 · 最后发言 ${lastTs}
           ${u.reached_threshold ? "" : `<span class="progress-bar"><span class="progress-fill" style="width:${bar}%"></span><span class="progress-text">${bar}%</span></span>`}
         </div>
       </div>

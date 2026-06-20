@@ -35,6 +35,7 @@ CREATE TABLE IF NOT EXISTS personas (
 
 CREATE TABLE IF NOT EXISTS group_state (
     group_id TEXT PRIMARY KEY,
+    group_name TEXT DEFAULT '',
     last_message_at REAL,
     last_bot_reply_at REAL,
     last_name_change_at REAL,
@@ -60,10 +61,16 @@ class GroupFriendStorage:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
         await self._conn.commit()
+        # 迁移: 为旧表添加 group_name 列
+        try:
+            await self._conn.execute("ALTER TABLE group_state ADD COLUMN group_name TEXT DEFAULT ''")
+            await self._conn.commit()
+        except Exception:
+            pass
         cursor = await self._conn.execute("SELECT COUNT(*) as cnt FROM messages")
         row = await cursor.fetchone()
         cnt = row["cnt"] if row else 0
-        logger.info(f"[群友蒸馏] DB init done, messages count: {cnt}")
+        logger.info(f"[群友蒸馏] DB init done, messages: {cnt}")
 
     async def close(self):
         if self._conn:
@@ -153,21 +160,25 @@ class GroupFriendStorage:
         last_message_at: Optional[float] = None,
         last_bot_reply_at: Optional[float] = None,
         last_name_change_at: Optional[float] = None,
+        group_name: Optional[str] = None,
     ):
         await self._conn.execute(
-            "INSERT INTO group_state (group_id, last_message_at, last_bot_reply_at, last_name_change_at) "
-            "VALUES (?, ?, ?, ?) ON CONFLICT(group_id) DO UPDATE SET "
+            "INSERT INTO group_state (group_id, last_message_at, last_bot_reply_at, last_name_change_at, group_name) "
+            "VALUES (?, ?, ?, ?, ?) ON CONFLICT(group_id) DO UPDATE SET "
             "last_message_at = COALESCE(?, last_message_at), "
             "last_bot_reply_at = COALESCE(?, last_bot_reply_at), "
-            "last_name_change_at = COALESCE(?, last_name_change_at)",
+            "last_name_change_at = COALESCE(?, last_name_change_at), "
+            "group_name = COALESCE(?, group_name)",
             (
                 group_id,
                 last_message_at,
                 last_bot_reply_at,
                 last_name_change_at,
+                group_name,
                 last_message_at,
                 last_bot_reply_at,
                 last_name_change_at,
+                group_name,
             ),
         )
         await self._conn.commit()
