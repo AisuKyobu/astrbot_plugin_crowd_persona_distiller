@@ -5,6 +5,5 @@ __pycache__/
 dist/
 build/
 skills/
-AGENTS.md
 *.db
 data/
