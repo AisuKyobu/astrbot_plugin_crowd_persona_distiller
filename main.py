@@ -518,8 +518,14 @@ class GroupFriendPlugin(Star):
 
     async def _api_distillable_users(self):
         min_messages = self.config.get("min_distill_messages", 50)
-        users = await self.storage.list_distillable_users(min_messages=0)
-        logger.info(f"[群友蒸馏] distillable raw query returned {len(users)} rows")
+        try:
+            users = await self.storage.list_distillable_users(min_messages=0)
+            logger.info(f"[群友蒸馏] distillable raw query returned {len(users)} rows")
+            if users:
+                logger.info(f"[群友蒸馏] first row: group_id={users[0].get('group_id')}, user_id={users[0].get('user_id')}, user_name={users[0].get('user_name')}, cnt={users[0].get('message_count')}")
+        except Exception as e:
+            logger.error(f"[群友蒸馏] list_distillable_users failed: {e}", exc_info=True)
+            return _json([])
         personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
 
         results = []
