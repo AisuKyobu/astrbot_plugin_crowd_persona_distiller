@@ -2,7 +2,18 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Plain
 from astrbot.api.star import Context, Star, register
-from astrbot.api.web import error_response, json_response, request
+
+try:
+    from astrbot.api.web import _err as _err, _json as _json, request as _req
+except ImportError:
+    from quart import jsonify, request as _req
+
+    def _json(data, status_code=200):
+        return jsonify(data), status_code
+
+    def _err(msg, status_code=400):
+        return jsonify({"status": "error", "message": msg}), status_code
+
 
 from .persona_mgr import PersonaManager
 from .reply_engine import ReplyEngine
@@ -234,80 +245,76 @@ class GroupFriendPlugin(Star):
 
     async def _api_list_personas(self):
         personas = self.persona_mgr.list_all()
-        return json_response(personas)
+        return _json(personas)
 
     async def _api_distill(self):
-        payload = await request.json(default={})
+        payload = (await _req.get_json()) or {}
         group_id = payload.get("group_id", "")
         user_id = payload.get("user_id", "")
         user_name = payload.get("user_name", "")
         if not group_id or not user_id:
-            return error_response("missing group_id/user_id/user_name", status_code=400)
+            return _err("missing group_id/user_id/user_name", status_code=400)
         try:
             slug = await self.persona_mgr.distill(group_id, user_id, user_name)
             if slug:
-                return json_response({"slug": slug, "name": user_name})
-            return error_response("distill failed", status_code=500)
+                return _json({"slug": slug, "name": user_name})
+            return _err("distill failed", status_code=500)
         except Exception as e:
-            return error_response(str(e), status_code=500)
+            return _err(str(e), status_code=500)
 
     async def _api_get_persona(self, slug: str):
         content = self.persona_mgr.load_persona(slug)
         meta = self.persona_mgr.load_meta(slug)
         if content is None:
-            return error_response("not found", status_code=404)
-        return json_response({"content": content, "meta": meta})
+            return _err("not found", status_code=404)
+        return _json({"content": content, "meta": meta})
 
     async def _api_save_persona(self, slug: str):
-        payload = await request.json(default={})
+        payload = (await _req.get_json()) or {}
         content = payload.get("content", "")
         if not content:
-            return error_response("missing content", status_code=400)
+            return _err("missing content", status_code=400)
         self.persona_mgr.save_persona(slug, content)
-        return json_response({"saved": True})
+        return _json({"saved": True})
 
     async def _api_import(self):
-        files = await request.files()
-        upload = files.get("file") if files else None
-        if not upload:
-            return error_response("missing file", status_code=400)
-
-        import json as _json
-        import os
-        import tempfile
-
-        tmp_path = os.path.join(tempfile.gettempdir(), f"qy_import_{upload.filename}")
-        await upload.save(tmp_path)
-
         try:
-            with open(tmp_path, "r", encoding="utf-8") as f:
-                data = _json.load(f)
-        except Exception as e:
-            return error_response(f"JSON 解析失败: {e}", status_code=400)
-        finally:
-            try:
-                os.remove(tmp_path)
-            except Exception:
-                pass
+            import json as _json_lib
+            import os
+            import tempfile
 
-        group_id = request.query.get("group_id", "")
-        target_name = request.query.get("target_name", "")
+            content_type = _req.content_type or ""
+            if "multipart" in content_type:
+                files = _req.files
+                upload = files.get("file")
+                if not upload:
+                    return _err("missing file", status_code=400)
+                body = upload.read()
+                data = _json_lib.loads(body)
+            else:
+                body = await _req.get_data()
+                data = _json_lib.loads(body)
+        except Exception as e:
+            return _err(f"请求解析失败: {e}", status_code=400)
+
+        group_id = _req.args.get("group_id", "")
+        target_name = _req.args.get("target_name", "")
 
         from .chat_parser import parse_qq_export_json
 
         messages = parse_qq_export_json(data, target_name)
         if not messages:
-            return error_response("未解析到消息", status_code=400)
+            return _err("未解析到消息", status_code=400)
 
         if not group_id:
-            return json_response({"count": len(messages), "preview": messages[:5]})
+            return _json({"count": len(messages), "preview": messages[:5]})
 
         user_id = "imported_" + target_name
         count = await self.persona_mgr.import_from_messages(
             group_id, user_id, target_name, messages
         )
-        return json_response({"imported": count, "user_name": target_name})
+        return _json({"imported": count, "user_name": target_name})
 
     async def _api_group_users(self, group_id: str):
         users = await self.storage.list_active_users(group_id, min_messages=1)
-        return json_response(users)
+        return _json(users)
