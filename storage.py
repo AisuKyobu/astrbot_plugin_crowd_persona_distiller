@@ -126,18 +126,22 @@ class GroupFriendStorage:
 
     async def list_distillable_users(self, min_messages: int = 0) -> list[dict]:
         """返回所有群的所有用户及蒸馏状态"""
-        cursor = await self._conn.execute(
-            """SELECT m.group_id, m.user_id, m.user_name,
-                      COUNT(*) as message_count, MAX(m.timestamp) as last_msg_at,
-                      p.slug, p.last_distill_at
-               FROM messages m
-               LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id
-               GROUP BY m.group_id, m.user_id
-               HAVING message_count >= ?
-               ORDER BY message_count DESC""",
-            (min_messages,),
-        )
+        sql = """SELECT m.group_id, m.user_id, m.user_name,
+                        COUNT(*) as message_count, MAX(m.timestamp) as last_msg_at,
+                        p.slug, p.last_distill_at
+                 FROM messages m
+                 LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id
+                 GROUP BY m.group_id, m.user_id
+                 HAVING message_count >= ?
+                 ORDER BY message_count DESC"""
+        logger.info(f"[群友蒸馏] list_distillable SQL: {sql[:80]}... param={min_messages}")
+        try:
+            cursor = await self._conn.execute(sql, (min_messages,))
+        except Exception as e:
+            logger.error(f"[群友蒸馏] execute failed: {e}", exc_info=True)
+            return []
         rows = await cursor.fetchall()
+        logger.info(f"[群友蒸馏] list_distillable fetched {len(rows)} rows")
         results = []
         for row in rows:
             r = dict(row)
