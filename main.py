@@ -234,7 +234,16 @@ class GroupFriendPlugin(Star):
             "保存 Persona 内容",
         )
         self.context.register_web_api(
-            f"/{p}/import", self._api_import, ["POST"], "导入聊天记录"
+            f"/{p}/import/preview",
+            self._api_import_preview,
+            ["POST"],
+            "上传聊天记录，返回解析摘要",
+        )
+        self.context.register_web_api(
+            f"/{p}/import/execute",
+            self._api_import_execute,
+            ["POST"],
+            "确认导入选中的群友消息",
         )
         self.context.register_web_api(
             f"/{p}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表"
@@ -274,38 +283,98 @@ class GroupFriendPlugin(Star):
         self.persona_mgr.save_persona(slug, content)
         return _json({"saved": True})
 
-    async def _api_import(self):
+    async def _api_import_preview(self):
+        import json as _json_lib
+        import uuid
+
+        try:
+            content_type = request.content_type or ""
+            if "multipart" in content_type:
+                files = request.files
+                upload = files.get("file")
+                if not upload:
+                    return _err("missing file", status_code=400)
+                body = upload.read()
+            else:
+                body = await request.get_data()
+
+            data = _json_lib.loads(body)
+        except Exception as e:
+            logger.error(f"[群友蒸馏] 导入文件解析失败: {e}")
+            return _err(f"文件解析失败: {e}", status_code=400)
+
+        try:
+            from .chat_parser import extract_import_summary
+
+            summary = extract_import_summary(data)
+            if not summary.get("users"):
+                return _err("未从文件中解析到任何用户消息", status_code=400)
+
+            token = uuid.uuid4().hex
+            await self.put_kv_data(f"import_{token}", data)
+            summary["import_token"] = token
+
+            logger.info(
+                f"[群友蒸馏] 导入预览: {summary['total_messages']} 条消息, "
+                f"{len(summary['users'])} 个用户, "
+                f"群: {summary.get('group_name', '未知')}"
+            )
+            return _json(summary)
+        except Exception as e:
+            logger.error(f"[群友蒸馏] 导入摘要提取失败: {e}")
+            return _err(f"摘要提取失败: {e}", status_code=500)
+
+    async def _api_import_execute(self):
         import json as _json_lib
 
-        content_type = request.content_type or ""
-        if "multipart" in content_type:
-            files = request.files
-            upload = files.get("file")
-            if not upload:
-                return _err("missing file", status_code=400)
-            body = upload.read()
-            data = _json_lib.loads(body)
-        else:
-            body = await request.get_data()
-            data = _json_lib.loads(body)
+        try:
+            payload = (await request.get_json()) or {}
+        except Exception:
+            return _err("invalid JSON body", status_code=400)
 
-        group_id = request.args.get("group_id", "")
-        target_name = request.args.get("target_name", "")
+        token = payload.get("import_token", "")
+        group_id = payload.get("group_id", "")
+        user_ids = payload.get("user_ids", [])
 
-        from .chat_parser import parse_qq_export_json
-
-        messages = parse_qq_export_json(data, target_name)
-        if not messages:
-            return _err("未解析到消息", status_code=400)
-
+        if not token:
+            return _err("missing import_token", status_code=400)
         if not group_id:
-            return _json({"count": len(messages), "preview": messages[:5]})
+            return _err("missing group_id", status_code=400)
+        if not user_ids:
+            return _err("missing user_ids", status_code=400)
 
-        user_id = "imported_" + target_name
-        count = await self.persona_mgr.import_from_messages(
-            group_id, user_id, target_name, messages
-        )
-        return _json({"imported": count, "user_name": target_name})
+        data = await self.get_kv_data(f"import_{token}")
+        if not data:
+            return _err("import token 已过期，请重新上传文件", status_code=400)
+
+        try:
+            from .chat_parser import parse_qq_export_json
+
+            results = []
+            for uid in user_ids:
+                user_name = ""
+                messages = parse_qq_export_json(data, uid)
+                if not messages:
+                    messages = parse_qq_export_json(data, "")  # fallback: 按名字匹配
+                    filtered = [m for m in messages if m.get("sender") == uid or m.get("sender", "").startswith(uid)]
+                    if filtered:
+                        messages = filtered
+                        user_name = uid
+                else:
+                    user_name = uid
+
+                if messages:
+                    count = await self.persona_mgr.import_from_messages(
+                        group_id, uid, user_name, messages
+                    )
+                    results.append({"user_id": uid, "user_name": user_name, "imported": count})
+
+            await self.delete_kv_data(f"import_{token}")
+            logger.info(f"[群友蒸馏] 导入完成: {len(results)} 个用户, 群 {group_id}")
+            return _json({"results": results, "group_id": group_id})
+        except Exception as e:
+            logger.error(f"[群友蒸馏] 导入执行失败: {e}")
+            return _err(f"导入执行失败: {e}", status_code=500)
 
     async def _api_group_users(self, group_id: str):
         users = await self.storage.list_active_users(group_id, min_messages=1)

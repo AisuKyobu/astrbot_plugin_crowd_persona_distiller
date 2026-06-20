@@ -213,3 +213,98 @@ def _is_system_or_media(content: str) -> bool:
             return True
 
     return False
+
+
+def extract_import_summary(data) -> dict:
+    """
+    解析导出文件的摘要信息：群信息 + 所有用户 + 各自消息数
+
+    Returns:
+        {
+            "group_id": "123456",       # 可能为空
+            "group_name": "xxx群",       # 可能为空
+            "total_messages": 500,
+            "users": [
+                {"user_id": "789", "user_name": "小明", "message_count": 150, "sample": "最近一条消息..."},
+                ...
+            ]
+        }
+    """
+    raw = _extract_raw_messages(data)
+
+    group_id = ""
+    group_name = ""
+    if isinstance(data, dict):
+        group_id = str(
+            data.get("group_id") or data.get("groupId") or data.get("groupUin") or ""
+        )
+        group_name = str(
+            data.get("group_name") or data.get("groupName") or data.get("name") or ""
+        )
+
+    user_map: dict[str, dict] = {}
+    for msg in raw:
+        sender_name = _extract_sender(msg)
+        sender_id = _extract_sender_id(msg) or sender_name
+        content = _extract_content(msg)
+        if not content or not sender_name:
+            continue
+        if _is_system_or_media(content):
+            continue
+
+        key = sender_id
+        if key not in user_map:
+            user_map[key] = {
+                "user_id": sender_id,
+                "user_name": sender_name,
+                "message_count": 0,
+                "sample": content,
+            }
+        user_map[key]["message_count"] += 1
+        user_map[key]["sample"] = content
+
+    users = sorted(user_map.values(), key=lambda u: u["message_count"], reverse=True)
+
+    if not group_id and users:
+        for msg in raw:
+            gid = _extract_group_id(msg)
+            if gid:
+                group_id = str(gid)
+                break
+
+    return {
+        "group_id": group_id,
+        "group_name": group_name,
+        "total_messages": sum(u["message_count"] for u in users),
+        "users": users,
+    }
+
+
+def _extract_sender_id(msg: dict) -> str:
+    if not isinstance(msg, dict):
+        return ""
+    for key in (
+        "sender_id", "senderId", "user_id", "userId", "uin", "qq",
+        "sender_uin", "senderUin",
+    ):
+        val = msg.get(key)
+        if isinstance(val, (str, int, float)) and str(val).strip():
+            return str(int(val) if isinstance(val, float) else val).strip()
+
+    sender_obj = msg.get("sender")
+    if isinstance(sender_obj, dict):
+        for key in ("user_id", "userId", "uin", "qq"):
+            val = sender_obj.get(key)
+            if isinstance(val, (str, int, float)) and str(val).strip():
+                return str(int(val) if isinstance(val, float) else val).strip()
+    return ""
+
+
+def _extract_group_id(msg: dict) -> str:
+    if not isinstance(msg, dict):
+        return ""
+    for key in ("group_id", "groupId", "groupUin", "group_code", "groupCode"):
+        val = msg.get(key)
+        if isinstance(val, (str, int, float)) and str(val).strip():
+            return str(int(val) if isinstance(val, float) else val).strip()
+    return ""
