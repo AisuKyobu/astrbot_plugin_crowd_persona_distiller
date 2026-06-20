@@ -544,6 +544,20 @@ class GroupFriendPlugin(Star):
             join_rows = [dict(r) for r in await cursor2.fetchall()]
             logger.info(f"[群友蒸馏] LEFT JOIN returned {len(join_rows)}: {join_rows}")
 
+            # test exact list_distillable_users SQL
+            cursor3 = await conn.execute(
+                "SELECT m.group_id, m.user_id, m.user_name, "
+                "COUNT(*) as message_count, MAX(m.timestamp) as last_msg_at, "
+                "p.slug, p.last_distill_at "
+                "FROM messages m "
+                "LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id "
+                "GROUP BY m.group_id, m.user_id "
+                "HAVING message_count >= 0 "
+                "ORDER BY message_count DESC"
+            )
+            full_rows = [dict(r) for r in await cursor3.fetchall()]
+            logger.info(f"[群友蒸馏] full query (no param) returned {len(full_rows)}: {full_rows}")
+
             users = await self.storage.list_distillable_users(min_messages=0)
             logger.info(f"[群友蒸馏] list_distillable_users returned {len(users)} rows")
         except Exception as e:
