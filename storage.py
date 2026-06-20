@@ -55,11 +55,15 @@ class GroupFriendStorage:
         self._conn: Optional[aiosqlite.Connection] = None
 
     async def init_db(self):
+        logger.info(f"[群友蒸馏] DB path: {self.db_path}")
         self._conn = await aiosqlite.connect(self.db_path)
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
         await self._conn.commit()
-        logger.info(f"[群友蒸馏] 数据库已初始化: {self.db_path}")
+        cursor = await self._conn.execute("SELECT COUNT(*) as cnt FROM messages")
+        row = await cursor.fetchone()
+        cnt = row["cnt"] if row else 0
+        logger.info(f"[群友蒸馏] DB init done, messages count: {cnt}")
 
     async def close(self):
         if self._conn:
