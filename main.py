@@ -481,10 +481,10 @@ class GroupFriendPlugin(Star):
 
             results = []
             for uid in user_ids:
-                user_name = ""
+                user_name = uid
                 messages = parse_qq_export_json(data, uid)
                 if not messages:
-                    messages = parse_qq_export_json(data, "")  # fallback: 按名字匹配
+                    messages = parse_qq_export_json(data, "")
                     filtered = [
                         m
                         for m in messages
@@ -492,9 +492,9 @@ class GroupFriendPlugin(Star):
                     ]
                     if filtered:
                         messages = filtered
-                        user_name = uid
-                else:
-                    user_name = uid
+                        user_name = filtered[0].get("sender", uid)
+                elif messages:
+                    user_name = messages[0].get("sender", uid)
 
                 if messages:
                     count = await self.persona_mgr.import_from_messages(
@@ -503,6 +503,7 @@ class GroupFriendPlugin(Star):
                     results.append(
                         {"user_id": uid, "user_name": user_name, "imported": count}
                     )
+                    logger.info(f"[群友蒸馏] import execute: {user_name}({uid}) -> {count} msgs")
 
             await self.delete_kv_data(f"import_{token}")
             logger.info(f"[群友蒸馏] 导入完成: {len(results)} 个用户, 群 {group_id}")
@@ -518,12 +519,13 @@ class GroupFriendPlugin(Star):
     async def _api_distillable_users(self):
         min_messages = self.config.get("min_distill_messages", 50)
         users = await self.storage.list_distillable_users(min_messages=0)
+        logger.info(f"[群友蒸馏] distillable raw query returned {len(users)} rows")
         personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
 
         results = []
         for u in users:
             uid = u["user_id"]
-            slug = u.get("slug", "")
+            slug = u.get("slug") or ""
             p = personas.get(slug, {})
             results.append({
                 "group_id": u["group_id"],
@@ -533,7 +535,8 @@ class GroupFriendPlugin(Star):
                 "last_msg_at": u.get("last_msg_at"),
                 "distilled": u["distilled"],
                 "slug": slug,
-                "last_distill_at": p.get("last_distill_at", ""),
+                "last_distill_at": p.get("last_distill_at") or "",
                 "reached_threshold": u["message_count"] >= min_messages,
             })
+        logger.info(f"[群友蒸馏] distillable result: {len(results)} users")
         return _json(results)
