@@ -535,6 +535,15 @@ class GroupFriendPlugin(Star):
             raw_rows = [dict(r) for r in await cursor.fetchall()]
             logger.info(f"[群友蒸馏] raw GROUP BY returned {len(raw_rows)}: {raw_rows}")
 
+            # test LEFT JOIN
+            cursor2 = await conn.execute(
+                "SELECT m.user_id, p.slug FROM messages m "
+                "LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id "
+                "GROUP BY m.group_id, m.user_id LIMIT 5"
+            )
+            join_rows = [dict(r) for r in await cursor2.fetchall()]
+            logger.info(f"[群友蒸馏] LEFT JOIN returned {len(join_rows)}: {join_rows}")
+
             users = await self.storage.list_distillable_users(min_messages=0)
             logger.info(f"[群友蒸馏] list_distillable_users returned {len(users)} rows")
         except Exception as e:
