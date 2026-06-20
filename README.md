@@ -39,6 +39,40 @@ pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 
 在 AstrBot WebUI 中启用插件，配置蒸馏和回复用的 LLM 提供商后即可使用。
 
+## 数据导入
+
+插件支持导入 [qq-chat-exporter](https://github.com/shuakami/qq-chat-exporter) 导出的 JSON 格式聊天记录。
+
+### 导出步骤
+
+1. 从 [Releases](https://github.com/shuakami/qq-chat-exporter/releases) 下载 qq-chat-exporter
+2. 运行并扫码登录，复制 Token
+3. 打开 `http://localhost:40653/qce-v4-tool`，选择目标群
+4. 导出格式选择 **JSON**，点击导出
+5. 得到文件如 `group_群名_822355274_20260621_022728.json`
+6. 在插件 WebUI → 数据导入 → 上传该 JSON 文件
+
+### JSON 格式要求
+
+导出文件需包含以下字段（qq-chat-exporter v5.x 默认输出即符合）：
+
+```json
+{
+  "chatInfo": {"name": "群名", "type": "group"},
+  "messages": [
+    {
+      "timestamp": 1754820721000,
+      "sender": {"uin": "2689449524", "name": "家乐摩西"},
+      "content": {"text": "消息正文"},
+      "system": false,
+      "recalled": false
+    }
+  ]
+}
+```
+
+**导入时插件会自动识别：群名、所有发言用户、消息数，并排除系统消息和 图片/视频/卡片/合并转发 等非文本消息。**
+
 ## 配置
 
 | 配置项 | 说明 | 默认值 |

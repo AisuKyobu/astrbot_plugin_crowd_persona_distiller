@@ -287,6 +287,7 @@ class GroupFriendPlugin(Star):
         import json as _json_lib
         import uuid
 
+        filename = ""
         try:
             content_type = request.content_type or ""
             if "multipart" in content_type:
@@ -295,6 +296,7 @@ class GroupFriendPlugin(Star):
                 if not upload:
                     return _err("missing file", status_code=400)
                 body = upload.read()
+                filename = getattr(upload, "filename", "")
             else:
                 body = await request.get_data()
 
@@ -306,7 +308,7 @@ class GroupFriendPlugin(Star):
         try:
             from .chat_parser import extract_import_summary
 
-            summary = extract_import_summary(data)
+            summary = extract_import_summary(data, filename=filename)
             if not summary.get("users"):
                 return _err("未从文件中解析到任何用户消息", status_code=400)
 
