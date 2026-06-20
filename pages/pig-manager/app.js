@@ -150,7 +150,11 @@ async function previewImport() {
     showImportPreview('<div class="empty">解析中...</div>');
 
     try {
-        const summary = await bridge.upload("import/preview", file);
+        const base64 = await readFileAsBase64(file);
+        const summary = await bridge.apiPost("import/preview", {
+            file_name: file.name,
+            file_content: base64,
+        });
 
         importToken = summary.import_token || "";
         const gid = summary.group_id || "";
@@ -241,4 +245,17 @@ function esc(s) {
         .replace(/</g, "&lt;")
         .replace(/>/g, "&gt;")
         .replace(/"/g, "&quot;");
+}
+
+function readFileAsBase64(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => {
+            const result = reader.result;
+            const comma = result.indexOf(",");
+            resolve(comma > -1 ? result.slice(comma + 1) : result);
+        };
+        reader.onerror = () => reject(new Error("文件读取失败"));
+        reader.readAsDataURL(file);
+    });
 }

@@ -285,30 +285,41 @@ class GroupFriendPlugin(Star):
         return _json({"saved": True})
 
     async def _api_import_preview(self):
+        import base64
         import json as _json_lib
         import uuid
 
         filename = ""
         body = None
         try:
-            content_type = request.content_type or ""
+            content_type = (request.content_type or "").lower()
             logger.info(f"[群友蒸馏] import preview Content-Type: {content_type}")
 
             if "multipart" in content_type:
                 files = request.files
-                logger.info(f"[群友蒸馏] multipart files keys: {list(files.keys()) if files else 'None'}")
                 upload = files.get("file")
                 if upload is None:
-                    logger.error(f"[群友蒸馏] multipart 中未找到 'file' 字段")
-                    return _err("multipart 中未找到 'file' 字段，请确认上传方式", status_code=400)
+                    return _err("未找到上传文件", status_code=400)
                 body = upload.read()
                 filename = getattr(upload, "filename", "")
+            elif "json" in content_type:
+                payload = (await request.get_json()) or {}
+                file_content = payload.get("file_content", "")
+                filename = payload.get("file_name", "")
+                if not file_content:
+                    return _err("缺少 file_content 字段", status_code=400)
+                body = base64.b64decode(file_content)
             else:
                 body = await request.get_data()
-                logger.info(f"[群友蒸馏] raw body size: {len(body)}")
+                try:
+                    payload = _json_lib.loads(body)
+                    if isinstance(payload, dict) and "file_content" in payload:
+                        body = base64.b64decode(payload["file_content"])
+                        filename = payload.get("file_name", "")
+                except Exception:
+                    pass
 
             if not body:
-                logger.error("[群友蒸馏] 请求体为空")
                 return _err("请求体为空", status_code=400)
 
             data = _json_lib.loads(body)
