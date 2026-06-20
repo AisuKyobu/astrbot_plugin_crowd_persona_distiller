@@ -35,7 +35,12 @@ def _get_messages(data) -> list:
 def _get_sender_name(msg: dict) -> str:
     sender = msg.get("sender")
     if isinstance(sender, dict):
-        name = sender.get("name") or sender.get("groupCard") or sender.get("nickname") or ""
+        name = (
+            sender.get("name")
+            or sender.get("groupCard")
+            or sender.get("nickname")
+            or ""
+        )
         return str(name).strip()
     return ""
 
@@ -123,15 +128,21 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         if _is_system_or_media(msg, content):
             continue
 
-        if target_name and target_name not in sender_name and target_name not in sender_uin:
+        if (
+            target_name
+            and target_name not in sender_name
+            and target_name not in sender_uin
+        ):
             continue
 
-        messages.append({
-            "sender": sender_name,
-            "sender_uin": sender_uin,
-            "content": content,
-            "timestamp": _format_timestamp(msg.get("timestamp")),
-        })
+        messages.append(
+            {
+                "sender": sender_name,
+                "sender_uin": sender_uin,
+                "content": content,
+                "timestamp": _format_timestamp(msg.get("timestamp")),
+            }
+        )
     return messages
 
 
@@ -159,6 +170,7 @@ def extract_import_summary(data, filename: str = "") -> dict:
     group_id = ""
     if filename:
         import re
+
         match = re.search(r"group_.*?_(\d+)_", filename)
         if match:
             group_id = match.group(1)

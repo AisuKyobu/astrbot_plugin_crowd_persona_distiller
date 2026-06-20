@@ -2,7 +2,7 @@ from astrbot.api import AstrBotConfig, logger
 from astrbot.api.event import AstrMessageEvent, MessageChain, filter
 from astrbot.api.message_components import Plain
 from astrbot.api.star import Context, Star, register
-from quart import request, jsonify
+from quart import jsonify, request
 
 from .persona_mgr import PersonaManager
 from .reply_engine import ReplyEngine
@@ -218,36 +218,37 @@ class GroupFriendPlugin(Star):
 
     def _register_web_apis(self):
         p = "astrbot_plugin_crowd_persona_distiller"
-        self.context.register_web_api(
-            f"/{p}/personas", self._api_list_personas, ["GET"], "列出所有 Persona"
-        )
-        self.context.register_web_api(
-            f"/{p}/distill", self._api_distill, ["POST"], "触发蒸馏"
-        )
-        self.context.register_web_api(
-            f"/{p}/persona/<slug>", self._api_get_persona, ["GET"], "获取 Persona 内容"
-        )
-        self.context.register_web_api(
-            f"/{p}/persona/<slug>/save",
-            self._api_save_persona,
-            ["POST"],
-            "保存 Persona 内容",
-        )
-        self.context.register_web_api(
-            f"/{p}/import/preview",
-            self._api_import_preview,
-            ["POST"],
-            "上传聊天记录，返回解析摘要",
-        )
-        self.context.register_web_api(
-            f"/{p}/import/execute",
-            self._api_import_execute,
-            ["POST"],
-            "确认导入选中的群友消息",
-        )
-        self.context.register_web_api(
-            f"/{p}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表"
-        )
+        for route_prefix in (f"/{p}", ""):
+            self.context.register_web_api(
+                f"{route_prefix}/personas", self._api_list_personas, ["GET"], "列出所有 Persona"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/distill", self._api_distill, ["POST"], "触发蒸馏"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/persona/<slug>", self._api_get_persona, ["GET"], "获取 Persona 内容"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/persona/<slug>/save",
+                self._api_save_persona,
+                ["POST"],
+                "保存 Persona 内容",
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/import/preview",
+                self._api_import_preview,
+                ["POST"],
+                "上传聊天记录，返回解析摘要",
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/import/execute",
+                self._api_import_execute,
+                ["POST"],
+                "确认导入选中的群友消息",
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表"
+            )
 
     async def _api_list_personas(self):
         personas = self.persona_mgr.list_all()
@@ -288,21 +289,31 @@ class GroupFriendPlugin(Star):
         import uuid
 
         filename = ""
+        body = None
         try:
             content_type = request.content_type or ""
+            logger.info(f"[群友蒸馏] import preview Content-Type: {content_type}")
+
             if "multipart" in content_type:
                 files = request.files
+                logger.info(f"[群友蒸馏] multipart files keys: {list(files.keys()) if files else 'None'}")
                 upload = files.get("file")
-                if not upload:
-                    return _err("missing file", status_code=400)
+                if upload is None:
+                    logger.error(f"[群友蒸馏] multipart 中未找到 'file' 字段")
+                    return _err("multipart 中未找到 'file' 字段，请确认上传方式", status_code=400)
                 body = upload.read()
                 filename = getattr(upload, "filename", "")
             else:
                 body = await request.get_data()
+                logger.info(f"[群友蒸馏] raw body size: {len(body)}")
+
+            if not body:
+                logger.error("[群友蒸馏] 请求体为空")
+                return _err("请求体为空", status_code=400)
 
             data = _json_lib.loads(body)
         except Exception as e:
-            logger.error(f"[群友蒸馏] 导入文件解析失败: {e}")
+            logger.error(f"[群友蒸馏] 导入文件解析失败: {e}", exc_info=True)
             return _err(f"文件解析失败: {e}", status_code=400)
 
         try:
@@ -327,7 +338,6 @@ class GroupFriendPlugin(Star):
             return _err(f"摘要提取失败: {e}", status_code=500)
 
     async def _api_import_execute(self):
-        import json as _json_lib
 
         try:
             payload = (await request.get_json()) or {}
@@ -358,7 +368,11 @@ class GroupFriendPlugin(Star):
                 messages = parse_qq_export_json(data, uid)
                 if not messages:
                     messages = parse_qq_export_json(data, "")  # fallback: 按名字匹配
-                    filtered = [m for m in messages if m.get("sender") == uid or m.get("sender", "").startswith(uid)]
+                    filtered = [
+                        m
+                        for m in messages
+                        if m.get("sender") == uid or m.get("sender", "").startswith(uid)
+                    ]
                     if filtered:
                         messages = filtered
                         user_name = uid
@@ -369,7 +383,9 @@ class GroupFriendPlugin(Star):
                     count = await self.persona_mgr.import_from_messages(
                         group_id, uid, user_name, messages
                     )
-                    results.append({"user_id": uid, "user_name": user_name, "imported": count})
+                    results.append(
+                        {"user_id": uid, "user_name": user_name, "imported": count}
+                    )
 
             await self.delete_kv_data(f"import_{token}")
             logger.info(f"[群友蒸馏] 导入完成: {len(results)} 个用户, 群 {group_id}")
