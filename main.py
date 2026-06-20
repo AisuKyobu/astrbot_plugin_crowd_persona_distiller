@@ -8,6 +8,11 @@ from .persona_mgr import PersonaManager
 from .reply_engine import ReplyEngine
 from .storage import GroupFriendStorage
 
+import base64 as _base64
+import os
+from pathlib import Path
+from astrbot.core.utils.astrbot_path import get_astrbot_data_path
+
 
 def _json(data, status_code=200):
     return jsonify(data), status_code
@@ -241,6 +246,18 @@ class GroupFriendPlugin(Star):
                 "上传聊天记录，返回解析摘要",
             )
             self.context.register_web_api(
+                f"{route_prefix}/import/chunk",
+                self._api_import_chunk,
+                ["POST"],
+                "分片上传",
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/import/assemble",
+                self._api_import_assemble,
+                ["POST"],
+                "分片拼接并解析",
+            )
+            self.context.register_web_api(
                 f"{route_prefix}/import/execute",
                 self._api_import_execute,
                 ["POST"],
@@ -283,6 +300,92 @@ class GroupFriendPlugin(Star):
             return _err("missing content", status_code=400)
         self.persona_mgr.save_persona(slug, content)
         return _json({"saved": True})
+
+    async def _api_import_chunk(self):
+        payload = (await request.get_json()) or {}
+        upload_id = payload.get("upload_id", "")
+        chunk_index = payload.get("chunk_index", -1)
+        file_name = payload.get("file_name", "")
+        data = payload.get("data", "")
+
+        if not upload_id or data is None:
+            return _err("missing upload_id or data", status_code=400)
+
+        temp_dir = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_crowd_persona_distiller" / "temp"
+        temp_dir.mkdir(parents=True, exist_ok=True)
+        chunk_path = temp_dir / f"{upload_id}.part"
+
+        with open(chunk_path, "ab" if chunk_index > 0 else "wb") as f:
+            f.write(data.encode("utf-8"))
+
+        meta_path = temp_dir / f"{upload_id}.meta"
+        if not meta_path.exists():
+            meta_path.write_text(file_name, encoding="utf-8")
+
+        logger.debug(f"[群友蒸馏] chunk {chunk_index + 1} received for {upload_id}")
+        return _json({"ok": True, "chunk_index": chunk_index})
+
+    async def _api_import_assemble(self):
+        payload = (await request.get_json()) or {}
+        upload_id = payload.get("upload_id", "")
+        if not upload_id:
+            return _err("missing upload_id", status_code=400)
+
+        import json as _json_lib
+
+        temp_dir = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_crowd_persona_distiller" / "temp"
+        chunk_path = temp_dir / f"{upload_id}.part"
+        meta_path = temp_dir / f"{upload_id}.meta"
+
+        if not chunk_path.exists():
+            return _err("upload not found or expired", status_code=400)
+
+        try:
+            base64_text = chunk_path.read_text(encoding="utf-8")
+            body = _base64.b64decode(base64_text)
+            data = _json_lib.loads(body)
+        except Exception as e:
+            self._cleanup_upload(upload_id)
+            logger.error(f"[群友蒸馏] assemble decode failed: {e}")
+            return _err(f"文件解析失败: {e}", status_code=400)
+
+        try:
+            from .chat_parser import extract_import_summary
+
+            filename = meta_path.read_text(encoding="utf-8") if meta_path.exists() else ""
+            summary = extract_import_summary(data, filename=filename)
+        except Exception as e:
+            self._cleanup_upload(upload_id)
+            logger.error(f"[群友蒸馏] assemble summary failed: {e}")
+            return _err(f"摘要提取失败: {e}", status_code=500)
+
+        if not summary.get("users"):
+            self._cleanup_upload(upload_id)
+            return _err("未从文件中解析到任何用户消息", status_code=400)
+
+        import uuid
+        token = uuid.uuid4().hex
+        await self.put_kv_data(f"import_{token}", data)
+        summary["import_token"] = token
+
+        self._cleanup_upload(upload_id)
+
+        logger.info(
+            f"[群友蒸馏] 导入预览: {summary['total_messages']} 条消息, "
+            f"{len(summary['users'])} 个用户, "
+            f"群: {summary.get('group_name', '未知')}"
+        )
+        return _json(summary)
+
+    def _cleanup_upload(self, upload_id: str):
+        temp_dir = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_crowd_persona_distiller" / "temp"
+        for ext in (".part", ".meta"):
+            p = temp_dir / f"{upload_id}{ext}"
+            try:
+                if p.exists():
+                    p.unlink()
+            except Exception:
+                pass
 
     async def _api_import_preview(self):
         import base64

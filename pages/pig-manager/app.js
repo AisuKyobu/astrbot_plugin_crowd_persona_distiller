@@ -151,9 +151,29 @@ async function previewImport() {
 
     try {
         const base64 = await readFileAsBase64(file);
-        const summary = await bridge.apiPost("import/preview", {
-            file_name: file.name,
-            file_content: base64,
+        const CHUNK_SIZE = 500 * 1024; // 500KB
+        const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
+        const uploadId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
+
+        showImportPreview(`<div class="empty">上传中 (0/${totalChunks})...</div>`);
+
+        for (let i = 0; i < totalChunks; i++) {
+            const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
+            await bridge.apiPost("import/chunk", {
+                upload_id: uploadId,
+                chunk_index: i,
+                total_chunks: totalChunks,
+                file_name: file.name,
+                data: chunk,
+            });
+            if (i % 5 === 0 || i === totalChunks - 1) {
+                showImportPreview(`<div class="empty">上传中 (${i + 1}/${totalChunks})...</div>`);
+            }
+        }
+
+        showImportPreview('<div class="empty">解析中...</div>');
+        const summary = await bridge.apiPost("import/assemble", {
+            upload_id: uploadId,
         });
 
         importToken = summary.import_token || "";

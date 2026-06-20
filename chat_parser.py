@@ -164,8 +164,8 @@ def extract_import_summary(data, filename: str = "") -> dict:
     raw = _get_messages(data)
 
     chat_info = data.get("chatInfo") if isinstance(data, dict) else {}
-    group_name = str(chat_info.get("name", ""))
-    self_uin = str(chat_info.get("selfUin", "") or chat_info.get("selfUid", ""))
+    group_name = str(chat_info.get("name", "")) if isinstance(chat_info, dict) else ""
+    self_uin = str(chat_info.get("selfUin", "") or chat_info.get("selfUid", "")) if isinstance(chat_info, dict) else ""
 
     group_id = ""
     if filename:
