@@ -469,7 +469,7 @@ class GroupFriendPlugin(Star):
         if not user_ids:
             return _err("missing user_ids", status_code=400)
 
-        data = await self.get_kv_data(f"import_{token}")
+        data = await self.get_kv_data(f"import_{token}", None)
         if not data:
             return _err("import token 已过期，请重新上传文件", status_code=400)
 
