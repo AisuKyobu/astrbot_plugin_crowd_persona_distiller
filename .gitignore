@@ -6,3 +6,5 @@ dist/
 build/
 skills/
 AGENTS.md
+*.db
+data/
