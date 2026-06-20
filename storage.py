@@ -36,6 +36,9 @@ CREATE TABLE IF NOT EXISTS personas (
 CREATE TABLE IF NOT EXISTS group_state (
     group_id TEXT PRIMARY KEY,
     group_name TEXT DEFAULT '',
+    reply_mode TEXT DEFAULT 'random',
+    specific_slug TEXT DEFAULT '',
+    at_trigger INTEGER DEFAULT 1,
     last_message_at REAL,
     last_bot_reply_at REAL,
     last_name_change_at REAL,
@@ -61,12 +64,18 @@ class GroupFriendStorage:
         self._conn.row_factory = aiosqlite.Row
         await self._conn.executescript(SCHEMA)
         await self._conn.commit()
-        # 迁移: 为旧表添加 group_name 列
-        try:
-            await self._conn.execute("ALTER TABLE group_state ADD COLUMN group_name TEXT DEFAULT ''")
-            await self._conn.commit()
-        except Exception:
-            pass
+        # 迁移: 为旧表添加缺失列
+        for col, default in (
+            ("group_name", "''"),
+            ("reply_mode", "'random'"),
+            ("specific_slug", "''"),
+            ("at_trigger", "1"),
+        ):
+            try:
+                await self._conn.execute(f"ALTER TABLE group_state ADD COLUMN {col} TEXT DEFAULT {default}")
+                await self._conn.commit()
+            except Exception:
+                pass
         cursor = await self._conn.execute("SELECT COUNT(*) as cnt FROM messages")
         row = await cursor.fetchone()
         cnt = row["cnt"] if row else 0
@@ -189,6 +198,48 @@ class GroupFriendStorage:
         )
         row = await cursor.fetchone()
         return dict(row) if row else None
+
+    async def update_group_config(self, group_id: str, **kwargs):
+        """更新群配置（reply_mode, specific_slug, at_trigger 等）"""
+        await self._conn.execute(
+            "INSERT INTO group_state (group_id) VALUES (?) ON CONFLICT(group_id) DO NOTHING",
+            (group_id,),
+        )
+        sets = ", ".join(f"{k} = ?" for k in kwargs)
+        values = list(kwargs.values()) + [group_id]
+        await self._conn.execute(
+            f"UPDATE group_state SET {sets} WHERE group_id = ?", values
+        )
+        await self._conn.commit()
+
+    async def get_group_config(self, group_id: str) -> dict:
+        """获取群配置，不存在时返回默认值"""
+        state = await self.get_group_state(group_id)
+        if state:
+            return {
+                "group_id": group_id,
+                "group_name": state.get("group_name", ""),
+                "reply_mode": state.get("reply_mode", "random"),
+                "specific_slug": state.get("specific_slug", ""),
+                "at_trigger": bool(state.get("at_trigger", 1)),
+            }
+        return {
+            "group_id": group_id,
+            "group_name": "",
+            "reply_mode": "random",
+            "specific_slug": "",
+            "at_trigger": True,
+        }
+
+    async def list_all_groups(self) -> list[dict]:
+        """列出所有有消息的群及配置"""
+        cursor = await self._conn.execute(
+            """SELECT gs.* FROM group_state gs
+               WHERE EXISTS (SELECT 1 FROM messages m WHERE m.group_id = gs.group_id)
+               ORDER BY gs.group_id"""
+        )
+        rows = await cursor.fetchall()
+        return [dict(r) for r in rows]
 
     # ---------- Persona 索引 ----------
 

@@ -14,6 +14,7 @@
         <button class="tab active" data-tab="personas">群友列表</button>
         <button class="tab" data-tab="editor">Persona 编辑器</button>
         <button class="tab" data-tab="import">数据导入</button>
+        <button class="tab" data-tab="config">群配置</button>
       </nav>
     </header>
 
@@ -69,6 +70,47 @@
             <div id="import-preview" class="import-preview">
               <div class="empty">选择文件并填写信息后预览</div>
             </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 群配置 -->
+      <section id="tab-config" class="tab-content">
+        <div class="config-section">
+          <div class="form-row">
+            <label class="label">选择群</label>
+            <select id="config-group-select" class="select">
+              <option value="">-- 选择群 --</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="label">扮演模式</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="reply_mode" value="random" checked> 随机群友</label>
+              <label class="radio-label"><input type="radio" name="reply_mode" value="specific"> 指定群友</label>
+              <label class="radio-label"><input type="radio" name="reply_mode" value="disabled"> 关闭扮演</label>
+            </div>
+          </div>
+
+          <div class="form-row" id="specific-persona-row" style="display:none">
+            <label class="label">指定群友</label>
+            <select id="specific-persona-select" class="select">
+              <option value="">-- 选择群友 --</option>
+            </select>
+          </div>
+
+          <div class="form-row">
+            <label class="label">@机器人触发</label>
+            <label class="toggle-label">
+              <input type="checkbox" id="at-trigger-toggle" checked>
+              <span class="toggle-text">开启（群友 @Bot 时扮演回复）</span>
+            </label>
+          </div>
+
+          <div class="form-row">
+            <button id="btn-save-config" class="btn btn-save">保存配置</button>
+            <span id="config-status" class="status"></span>
           </div>
         </div>
       </section>

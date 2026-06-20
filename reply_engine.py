@@ -106,7 +106,24 @@ class ReplyEngine:
     # ---------- 回复生成 ----------
 
     async def generate_reply(self, group_id: str) -> tuple[str, str] | None:
-        persona = await self.persona_mgr.get_random_persona_for_group(group_id)
+        # 读群配置
+        cfg = await self.storage.get_group_config(group_id)
+        if cfg.get("reply_mode") == "disabled":
+            return None
+
+        if cfg.get("reply_mode") == "specific" and cfg.get("specific_slug"):
+            idx = await self.storage.get_persona_index(cfg["specific_slug"])
+            if idx:
+                persona = {
+                    "slug": idx["slug"],
+                    "name": idx["name"],
+                    "group_id": idx["group_id"],
+                }
+            else:
+                persona = await self.persona_mgr.get_random_persona_for_group(group_id)
+        else:
+            persona = await self.persona_mgr.get_random_persona_for_group(group_id)
+
         if not persona:
             logger.warning(f"[群友蒸馏] 群 {group_id} 没有可用的 persona")
             return None

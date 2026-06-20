@@ -73,6 +73,13 @@ class GroupFriendPlugin(Star):
             return
 
         if event.is_at_or_wake_command:
+            # @Bot 触发：不记录消息，直接扮演回复
+            try:
+                cfg = await self.storage.get_group_config(str(group_id))
+                if cfg.get("at_trigger", True):
+                    await self.reply_engine.do_reply(str(group_id), event)
+            except Exception as e:
+                logger.error(f"[群友蒸馏] @Bot触发失败: {e}")
             return
 
         content = event.message_str.strip() if event.message_str else ""
@@ -285,6 +292,15 @@ class GroupFriendPlugin(Star):
             )
             self.context.register_web_api(
                 f"{route_prefix}/distillable", self._api_distillable_users, ["GET"], "所有可蒸馏/已蒸馏用户列表"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/group_config/<group_id>", self._api_get_group_config, ["GET"], "获取群配置"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/group_config/<group_id>", self._api_update_group_config, ["POST"], "更新群配置"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/group_configs", self._api_list_group_configs, ["GET"], "列出所有群配置"
             )
 
     async def _api_list_personas(self):
@@ -587,3 +603,35 @@ class GroupFriendPlugin(Star):
                 "reached_threshold": u["message_count"] >= min_messages,
             })
         return _json(results)
+
+    async def _api_get_group_config(self, group_id: str):
+        cfg = await self.storage.get_group_config(group_id)
+        personas = await self.storage.get_personas_by_group(group_id)
+        cfg["personas"] = [
+            {"slug": p["slug"], "name": p["name"]} for p in personas
+        ]
+        return _json(cfg)
+
+    async def _api_update_group_config(self, group_id: str):
+        payload = (await request.get_json()) or {}
+        allowed = {"reply_mode", "specific_slug", "at_trigger"}
+        updates = {k: v for k, v in payload.items() if k in allowed}
+        if not updates:
+            return _err("no valid config keys", status_code=400)
+        if "at_trigger" in updates:
+            updates["at_trigger"] = int(bool(updates["at_trigger"]))
+        await self.storage.update_group_config(group_id, **updates)
+        return _json({"saved": True})
+
+    async def _api_list_group_configs(self):
+        groups = await self.storage.list_all_groups()
+        result = []
+        for g in groups:
+            result.append({
+                "group_id": g["group_id"],
+                "group_name": g.get("group_name", ""),
+                "reply_mode": g.get("reply_mode", "random"),
+                "specific_slug": g.get("specific_slug", ""),
+                "at_trigger": bool(g.get("at_trigger", 1)),
+            })
+        return _json(result)

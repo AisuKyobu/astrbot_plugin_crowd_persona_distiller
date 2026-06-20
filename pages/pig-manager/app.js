@@ -25,6 +25,9 @@ document.getElementById("btn-save-persona").addEventListener("click", savePerson
 document.getElementById("btn-import-preview").addEventListener("click", previewImport);
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
 document.getElementById("group-filter").addEventListener("change", loadPersonas);
+document.getElementById("config-group-select").addEventListener("change", onConfigGroupChange);
+document.querySelectorAll("input[name='reply_mode']").forEach((r) => r.addEventListener("change", onModeChange));
+document.getElementById("btn-save-config").addEventListener("click", saveConfig);
 
 loadPersonas();
 
@@ -34,6 +37,7 @@ function switchTab(name) {
     tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
     contents.forEach((c) => c.classList.toggle("active", c.id === `tab-${name}`));
     if (name === "editor") refreshPersonaSelect();
+    if (name === "config") loadGroupConfigs();
 }
 
 // ---- Persona List ----
@@ -361,4 +365,69 @@ function readFileAsBase64(file) {
         reader.onerror = () => reject(new Error("文件读取失败"));
         reader.readAsDataURL(file);
     });
+}
+
+// ---- Group Config ----
+
+async function loadGroupConfigs() {
+    const sel = document.getElementById("config-group-select");
+    try {
+        const groups = await bridge.apiGet("group_configs");
+        sel.innerHTML = '<option value="">-- 选择群 --</option>';
+        groups.forEach((g) => {
+            sel.innerHTML += `<option value="${esc(g.group_id)}">${esc(g.group_name || g.group_id)} (${esc(g.group_id)})</option>`;
+        });
+    } catch (e) {
+        document.getElementById("config-status").textContent = `加载失败: ${e.message}`;
+    }
+}
+
+async function onConfigGroupChange() {
+    const groupId = document.getElementById("config-group-select").value;
+    if (!groupId) return;
+    document.getElementById("config-status").textContent = "加载中...";
+    try {
+        const cfg = await bridge.apiGet(`group_config/${groupId}`);
+        document.querySelector(`input[name="reply_mode"][value="${cfg.reply_mode || 'random'}"]`).checked = true;
+        document.getElementById("at-trigger-toggle").checked = cfg.at_trigger !== false;
+
+        const personaSel = document.getElementById("specific-persona-select");
+        personaSel.innerHTML = '<option value="">-- 选择群友 --</option>';
+        (cfg.personas || []).forEach((p) => {
+            personaSel.innerHTML += `<option value="${esc(p.slug)}" ${cfg.specific_slug === p.slug ? 'selected' : ''}>${esc(p.name)} [${esc(p.slug)}]</option>`;
+        });
+
+        onModeChange();
+        document.getElementById("config-status").textContent = "";
+    } catch (e) {
+        document.getElementById("config-status").textContent = `加载失败: ${e.message}`;
+    }
+}
+
+function onModeChange() {
+    const mode = document.querySelector("input[name='reply_mode']:checked")?.value;
+    document.getElementById("specific-persona-row").style.display = mode === "specific" ? "" : "none";
+}
+
+async function saveConfig() {
+    const groupId = document.getElementById("config-group-select").value;
+    if (!groupId) {
+        document.getElementById("config-status").textContent = "请先选择群";
+        return;
+    }
+    const replyMode = document.querySelector("input[name='reply_mode']:checked")?.value || "random";
+    const specificSlug = replyMode === "specific" ? document.getElementById("specific-persona-select").value : "";
+    const atTrigger = document.getElementById("at-trigger-toggle").checked;
+
+    document.getElementById("config-status").textContent = "保存中...";
+    try {
+        await bridge.apiPost(`group_config/${groupId}`, {
+            reply_mode: replyMode,
+            specific_slug: specificSlug,
+            at_trigger: atTrigger,
+        });
+        document.getElementById("config-status").textContent = "已保存";
+    } catch (e) {
+        document.getElementById("config-status").textContent = `保存失败: ${e.message}`;
+    }
 }
