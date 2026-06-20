@@ -3,10 +3,8 @@ from pathlib import Path
 from typing import Optional
 
 import aiosqlite
-
 from astrbot.api import logger
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS messages (
@@ -47,7 +45,11 @@ CREATE TABLE IF NOT EXISTS group_state (
 
 class GroupFriendStorage:
     def __init__(self):
-        data_dir = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_crowd_persona_distiller"
+        data_dir = (
+            Path(get_astrbot_data_path())
+            / "plugin_data"
+            / "astrbot_plugin_crowd_persona_distiller"
+        )
         data_dir.mkdir(parents=True, exist_ok=True)
         self.db_path = str(data_dir / "pig.db")
         self._conn: Optional[aiosqlite.Connection] = None
@@ -192,7 +194,9 @@ class GroupFriendStorage:
         return [dict(row) for row in rows]
 
     async def get_all_personas(self) -> list[dict]:
-        cursor = await self._conn.execute("SELECT * FROM personas ORDER BY updated_at DESC")
+        cursor = await self._conn.execute(
+            "SELECT * FROM personas ORDER BY updated_at DESC"
+        )
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 

@@ -7,8 +7,8 @@ from astrbot.api import logger
 from astrbot.api.event import AstrMessageEvent
 from astrbot.api.star import Context
 
-from .storage import GroupFriendStorage
 from .persona_mgr import PersonaManager
+from .storage import GroupFriendStorage
 
 
 class ReplyEngine:
@@ -133,9 +133,7 @@ class ReplyEngine:
         extra_prompt = self.config.get("custom_reply_system_prompt", "")
         system_prompt = persona_content
         if extra_prompt:
-            system_prompt += (
-                f"\n\n## 额外指令\n{extra_prompt}"
-            )
+            system_prompt += f"\n\n## 额外指令\n{extra_prompt}"
 
         try:
             llm_resp = await self.context.llm_generate(
@@ -186,15 +184,16 @@ class ReplyEngine:
 
         now = time.time()
         cooldown = self.config.get("reply_cooldown_minutes", 120) * 60
-        if state.get("last_bot_reply_at") and now - state["last_bot_reply_at"] < cooldown:
+        if (
+            state.get("last_bot_reply_at")
+            and now - state["last_bot_reply_at"] < cooldown
+        ):
             return False
         return True
 
     async def _record_reply(self, group_id: str, slug: str):
         now = time.time()
-        await self.storage.update_group_state(
-            group_id, last_bot_reply_at=now
-        )
+        await self.storage.update_group_state(group_id, last_bot_reply_at=now)
         self._persona_last_reply[slug] = now
 
     async def _maybe_change_name(
@@ -228,16 +227,12 @@ class ReplyEngine:
                 platforms = getattr(self.context, "platform_manager", None)
                 if platforms:
                     for plat in platforms:
-                        if hasattr(plat, "bot") and hasattr(
-                            plat.bot, "set_group_name"
-                        ):
+                        if hasattr(plat, "bot") and hasattr(plat.bot, "set_group_name"):
                             await plat.bot.set_group_name(
                                 group_id=int(group_id), group_name=new_name
                             )
                             break
-            await self.storage.update_group_state(
-                group_id, last_name_change_at=now
-            )
+            await self.storage.update_group_state(group_id, last_name_change_at=now)
             logger.info(f"[群友蒸馏] 群 {group_id} 名称已改为: {new_name}")
         except Exception as e:
             logger.warning(f"[群友蒸馏] 改群名失败: {e}")

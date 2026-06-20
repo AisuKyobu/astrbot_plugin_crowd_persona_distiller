@@ -35,7 +35,11 @@ class PersonaManager:
         self.storage = storage
         self.config = config
 
-        data_dir = Path(get_astrbot_data_path()) / "plugin_data" / "astrbot_plugin_crowd_persona_distiller"
+        data_dir = (
+            Path(get_astrbot_data_path())
+            / "plugin_data"
+            / "astrbot_plugin_crowd_persona_distiller"
+        )
         self.pigs_dir = data_dir / "pigs"
         self.pigs_dir.mkdir(parents=True, exist_ok=True)
 
@@ -150,7 +154,9 @@ class PersonaManager:
             logger.error(f"[群友蒸馏] LLM 分析失败: {e}")
             return None
 
-        persona_content = await self._build_persona(analysis_text, builder_prompt, provider_id, manual_tags)
+        persona_content = await self._build_persona(
+            analysis_text, builder_prompt, provider_id, manual_tags
+        )
 
         if not persona_content:
             return None
@@ -181,7 +187,11 @@ class PersonaManager:
         return slug
 
     async def _build_persona(
-        self, analysis_text: str, builder_prompt: str, provider_id: str, manual_tags: dict | None
+        self,
+        analysis_text: str,
+        builder_prompt: str,
+        provider_id: str,
+        manual_tags: dict | None,
     ) -> Optional[str]:
         build_prompt = (
             f"{builder_prompt}\n\n"
@@ -213,18 +223,14 @@ class PersonaManager:
             content = msg.get("content", "").strip()
             if not content:
                 continue
-            await self.storage.record_message(
-                group_id, user_id, user_name, content
-            )
+            await self.storage.record_message(group_id, user_id, user_name, content)
             count += 1
         logger.info(f"[群友蒸馏] 导入 {user_name} 的 {count} 条消息")
         return count
 
     # ---------- 辅助 ----------
 
-    def _format_messages_for_llm(
-        self, messages: list[dict], user_name: str
-    ) -> str:
+    def _format_messages_for_llm(self, messages: list[dict], user_name: str) -> str:
         long_msgs, interactive, daily = [], [], []
         for m in messages:
             content = m["content"]

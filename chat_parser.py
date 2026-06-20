@@ -41,11 +41,13 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         if target_name and target_name not in str(sender):
             continue
 
-        messages.append({
-            "sender": str(sender),
-            "content": str(content).strip(),
-            "timestamp": str(timestamp),
-        })
+        messages.append(
+            {
+                "sender": str(sender),
+                "content": str(content).strip(),
+                "timestamp": str(timestamp),
+            }
+        )
 
     return messages
 
@@ -73,10 +75,21 @@ def _extract_sender(msg: dict) -> str:
         return ""
 
     for key in (
-        "sender_name", "senderName", "sender",
-        "from_user", "fromUser", "user_name", "userName",
-        "nickname", "nick", "name", "qq_nick", "qqNick",
-        "userid", "user_id", "uin",
+        "sender_name",
+        "senderName",
+        "sender",
+        "from_user",
+        "fromUser",
+        "user_name",
+        "userName",
+        "nickname",
+        "nick",
+        "name",
+        "qq_nick",
+        "qqNick",
+        "userid",
+        "user_id",
+        "uin",
     ):
         val = msg.get(key)
         if isinstance(val, str) and val.strip():
@@ -100,19 +113,31 @@ def _extract_content(msg: dict) -> str:
         return ""
 
     for key in (
-        "content", "message", "text", "msg", "body",
-        "message_content", "raw_message", "rawMessage",
+        "content",
+        "message",
+        "text",
+        "msg",
+        "body",
+        "message_content",
+        "raw_message",
+        "rawMessage",
     ):
         val = msg.get(key)
         if isinstance(val, str) and val.strip():
             return val.strip()
 
-    messages_list = msg.get("messages") or msg.get("message_chain") or msg.get("messageChain")
+    messages_list = (
+        msg.get("messages") or msg.get("message_chain") or msg.get("messageChain")
+    )
     if isinstance(messages_list, list):
         texts = []
         for m in messages_list:
             if isinstance(m, dict):
-                t = m.get("text") or m.get("content") or m.get("data", {}).get("text", "")
+                t = (
+                    m.get("text")
+                    or m.get("content")
+                    or m.get("data", {}).get("text", "")
+                )
                 if isinstance(t, str):
                     texts.append(t)
         return " ".join(texts)
@@ -123,7 +148,14 @@ def _extract_content(msg: dict) -> str:
 def _extract_timestamp(msg: dict) -> str:
     """提取时间戳，统一转为 ISO 字符串"""
     ts = None
-    for key in ("timestamp", "time", "create_time", "created_at", "msg_time", "msgTime"):
+    for key in (
+        "timestamp",
+        "time",
+        "create_time",
+        "created_at",
+        "msg_time",
+        "msgTime",
+    ):
         val = msg.get(key)
         if val is not None:
             ts = val
@@ -153,7 +185,15 @@ def _is_system_or_media(content: str) -> bool:
 
     stripped = content.strip()
 
-    if stripped in ("[图片]", "[文件]", "[视频]", "[语音]", "[表情]", "[动画表情]", "[戳一戳]"):
+    if stripped in (
+        "[图片]",
+        "[文件]",
+        "[视频]",
+        "[语音]",
+        "[表情]",
+        "[动画表情]",
+        "[戳一戳]",
+    ):
         return True
 
     if stripped.startswith("[") and stripped.endswith("]") and len(stripped) < 20:

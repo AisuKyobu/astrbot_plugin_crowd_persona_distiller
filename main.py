@@ -1,16 +1,20 @@
-from astrbot.api.event import filter, AstrMessageEvent, MessageEventResult
+from astrbot.api import AstrBotConfig, logger
+from astrbot.api.event import AstrMessageEvent, MessageChain, filter
+from astrbot.api.message_components import Plain
 from astrbot.api.star import Context, Star, register
-from astrbot.api import logger, AstrBotConfig
 from astrbot.api.web import error_response, json_response, request
-from astrbot.api.event import MessageChain
-from astrbot.api.message_components import Plain, At
 
-from .storage import GroupFriendStorage
 from .persona_mgr import PersonaManager
 from .reply_engine import ReplyEngine
+from .storage import GroupFriendStorage
 
 
-@register("astrbot_plugin_crowd_persona_distiller", "AisuKyobu", "群友蒸馏bot：记录群聊 → LLM蒸馏人格 → 扮演群友回复", "0.1.0")
+@register(
+    "astrbot_plugin_crowd_persona_distiller",
+    "AisuKyobu",
+    "群友蒸馏bot：记录群聊 → LLM蒸馏人格 → 扮演群友回复",
+    "0.1.0",
+)
 class GroupFriendPlugin(Star):
     def __init__(self, context: Context, config: AstrBotConfig):
         super().__init__(context)
@@ -56,7 +60,9 @@ class GroupFriendPlugin(Star):
 
         content = event.message_str.strip() if event.message_str else ""
         message_type = event.get_message_type()
-        type_val = message_type.value if hasattr(message_type, "value") else str(message_type)
+        type_val = (
+            message_type.value if hasattr(message_type, "value") else str(message_type)
+        )
         if "other" in type_val.lower() or "notice" in type_val.lower():
             return
 
@@ -74,6 +80,7 @@ class GroupFriendPlugin(Star):
             await self.storage.record_message(group_id_str, user_id, user_name, content)
 
             import time
+
             await self.storage.update_group_state(
                 group_id_str, last_message_at=time.time()
             )
@@ -96,7 +103,9 @@ class GroupFriendPlugin(Star):
         """列出所有已蒸馏群友"""
         personas = self.persona_mgr.list_all()
         if not personas:
-            yield event.plain_result("还没有蒸馏过任何群友。用 /qunyou distill <名字> 开始吧！")
+            yield event.plain_result(
+                "还没有蒸馏过任何群友。用 /qunyou distill <名字> 开始吧！"
+            )
             return
 
         lines = ["已蒸馏群友：", ""]
@@ -123,7 +132,9 @@ class GroupFriendPlugin(Star):
                 break
 
         if not matched:
-            yield event.plain_result(f"在群 {group_id} 中未找到匹配 '{name}' 的发言用户。\n请确认名字是否正确，或让该群友多发几条消息。")
+            yield event.plain_result(
+                f"在群 {group_id} 中未找到匹配 '{name}' 的发言用户。\n请确认名字是否正确，或让该群友多发几条消息。"
+            )
             return
 
         user_id = matched["user_id"]
@@ -135,7 +146,9 @@ class GroupFriendPlugin(Star):
         try:
             slug = await self.persona_mgr.distill(str(group_id), user_id, user_name)
             if slug:
-                yield event.plain_result(f"蒸馏完成！群友 [{slug}] {user_name} 已生成 Persona。\n触发回复：/qunyou reply {slug}")
+                yield event.plain_result(
+                    f"蒸馏完成！群友 [{slug}] {user_name} 已生成 Persona。\n触发回复：/qunyou reply {slug}"
+                )
             else:
                 yield event.plain_result("蒸馏失败，请检查日志。")
         except Exception as e:
@@ -197,12 +210,27 @@ class GroupFriendPlugin(Star):
 
     def _register_web_apis(self):
         p = "astrbot_plugin_crowd_persona_distiller"
-        self.context.register_web_api(f"/{p}/personas", self._api_list_personas, ["GET"], "列出所有 Persona")
-        self.context.register_web_api(f"/{p}/distill", self._api_distill, ["POST"], "触发蒸馏")
-        self.context.register_web_api(f"/{p}/persona/<slug>", self._api_get_persona, ["GET"], "获取 Persona 内容")
-        self.context.register_web_api(f"/{p}/persona/<slug>/save", self._api_save_persona, ["POST"], "保存 Persona 内容")
-        self.context.register_web_api(f"/{p}/import", self._api_import, ["POST"], "导入聊天记录")
-        self.context.register_web_api(f"/{p}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表")
+        self.context.register_web_api(
+            f"/{p}/personas", self._api_list_personas, ["GET"], "列出所有 Persona"
+        )
+        self.context.register_web_api(
+            f"/{p}/distill", self._api_distill, ["POST"], "触发蒸馏"
+        )
+        self.context.register_web_api(
+            f"/{p}/persona/<slug>", self._api_get_persona, ["GET"], "获取 Persona 内容"
+        )
+        self.context.register_web_api(
+            f"/{p}/persona/<slug>/save",
+            self._api_save_persona,
+            ["POST"],
+            "保存 Persona 内容",
+        )
+        self.context.register_web_api(
+            f"/{p}/import", self._api_import, ["POST"], "导入聊天记录"
+        )
+        self.context.register_web_api(
+            f"/{p}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表"
+        )
 
     async def _api_list_personas(self):
         personas = self.persona_mgr.list_all()
@@ -244,11 +272,9 @@ class GroupFriendPlugin(Star):
         if not upload:
             return error_response("missing file", status_code=400)
 
-        from pathlib import Path
-        from astrbot.core.utils.astrbot_path import get_astrbot_data_path
-        import tempfile
-        import os
         import json as _json
+        import os
+        import tempfile
 
         tmp_path = os.path.join(tempfile.gettempdir(), f"qy_import_{upload.filename}")
         await upload.save(tmp_path)
@@ -268,6 +294,7 @@ class GroupFriendPlugin(Star):
         target_name = request.query.get("target_name", "")
 
         from .chat_parser import parse_qq_export_json
+
         messages = parse_qq_export_json(data, target_name)
         if not messages:
             return error_response("未解析到消息", status_code=400)
