@@ -1,0 +1,77 @@
+{
+  "distill_provider": {
+    "_special": "select_provider",
+    "description": "蒸馏分析用 LLM 提供商（需长上下文+强分析能力）"
+  },
+  "reply_provider": {
+    "_special": "select_provider",
+    "description": "回复生成用 LLM 提供商（快速+便宜即可）"
+  },
+  "target_groups": {
+    "type": "list",
+    "description": "监控的群号列表，留空则监控所有群"
+  },
+  "reply_probability": {
+    "type": "float",
+    "default": 0.05,
+    "description": "回复触发概率 (0.0~1.0)"
+  },
+  "reply_cooldown_minutes": {
+    "type": "int",
+    "default": 120,
+    "description": "同一群内两次回复的最小间隔（分钟）"
+  },
+  "persona_cooldown_minutes": {
+    "type": "int",
+    "default": 30,
+    "description": "同一 Persona 两次扮演的最小间隔（分钟）"
+  },
+  "cold_group_hours": {
+    "type": "int",
+    "default": 4,
+    "description": "冷群判定：N 小时无人发言即触发"
+  },
+  "cold_group_sleep_start": {
+    "type": "int",
+    "default": 2,
+    "description": "冷群休眠时段起点（时），此区间不触发冷群回复"
+  },
+  "cold_group_sleep_end": {
+    "type": "int",
+    "default": 8,
+    "description": "冷群休眠时段终点（时）"
+  },
+  "enable_name_change": {
+    "type": "bool",
+    "default": true,
+    "description": "扮演时将群名改为该群友昵称"
+  },
+  "name_change_cooldown_hours": {
+    "type": "int",
+    "default": 1,
+    "description": "改群名冷却（小时）"
+  },
+  "name_change_blacklist": {
+    "type": "list",
+    "description": "改群名黑名单（slug 列表）"
+  },
+  "reply_blacklist": {
+    "type": "list",
+    "description": "回复黑名单（slug 列表）"
+  },
+  "min_distill_messages": {
+    "type": "int",
+    "default": 50,
+    "description": "蒸馏最少需要多少条消息"
+  },
+  "context_message_count": {
+    "type": "int",
+    "default": 20,
+    "description": "扮演回复时附带的最近上下文消息数"
+  },
+  "custom_reply_system_prompt": {
+    "type": "string",
+    "default": "",
+    "description": "追加到每次扮演回复的额外 system prompt（全局生效）"
+  }
+}

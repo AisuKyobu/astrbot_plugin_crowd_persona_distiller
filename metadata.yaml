@@ -1,0 +1,9 @@
+name: astrbot_plugin_crowd_persona_distiller
+display_name: 群友蒸馏bot
+short_desc: 自动记录群聊并蒸馏群友人格，随机扮演群友语气回复或改群名。
+desc: 自动记录群聊消息，用 LLM 蒸馏群友人格画像。支持概率/冷群触发扮演回复、扮演时自动改群名。WebUI 管理 Persona，支持上传 qq-chat-exporter 聊天记录导入。
+version: v0.1.0
+author: AisuKyobu
+repo: https://github.com/AisuKyobu/astrbot_plugin_crowd_persona_distiller
+support_platforms:
+  - aiocqhttp

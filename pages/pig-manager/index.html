@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>群友蒸馏bot - 管理面板</title>
+  <link rel="stylesheet" href="./style.css" />
+</head>
+<body>
+  <div class="app">
+    <header class="header">
+      <h1>群友蒸馏bot</h1>
+      <nav class="tabs">
+        <button class="tab active" data-tab="personas">群友列表</button>
+        <button class="tab" data-tab="editor">Persona 编辑器</button>
+        <button class="tab" data-tab="import">数据导入</button>
+      </nav>
+    </header>
+
+    <main class="main">
+      <!-- 群友列表 -->
+      <section id="tab-personas" class="tab-content active">
+        <div class="toolbar">
+          <button id="btn-refresh" class="btn">刷新列表</button>
+          <span id="status-text" class="status"></span>
+        </div>
+        <div id="persona-list" class="card-list">
+          <div class="empty">加载中...</div>
+        </div>
+      </section>
+
+      <!-- Persona 编辑器 -->
+      <section id="tab-editor" class="tab-content">
+        <div class="editor-toolbar">
+          <select id="persona-select" class="select">
+            <option value="">-- 选择群友 --</option>
+          </select>
+          <button id="btn-load-persona" class="btn btn-primary">加载</button>
+          <button id="btn-save-persona" class="btn btn-save">保存</button>
+          <span id="editor-status" class="status"></span>
+        </div>
+        <textarea id="persona-editor" class="editor" placeholder="选择群友后加载 persona.md 内容..."></textarea>
+      </section>
+
+      <!-- 数据导入 -->
+      <section id="tab-import" class="tab-content">
+        <div class="import-section">
+          <h3>上传 QQ 聊天记录 (JSON)</h3>
+          <p class="hint">支持 <a href="https://github.com/shuakami/qq-chat-exporter" target="_blank">qq-chat-exporter</a> 导出的 JSON 格式</p>
+
+          <div class="import-form">
+            <label class="label">目标群号</label>
+            <input type="text" id="import-group-id" class="input" placeholder="留空仅预览不导入" />
+
+            <label class="label">目标人物昵称</label>
+            <input type="text" id="import-target-name" class="input" placeholder="从聊天记录中筛选该人的消息" />
+
+            <label class="label">聊天记录文件 (.json)</label>
+            <input type="file" id="import-file" class="input" accept=".json" />
+
+            <div class="import-actions">
+              <button id="btn-import-preview" class="btn btn-primary">预览</button>
+              <button id="btn-import-confirm" class="btn btn-save" disabled>确认导入</button>
+            </div>
+
+            <div id="import-preview" class="import-preview">
+              <div class="empty">选择文件并填写信息后预览</div>
+            </div>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script type="module" src="./app.js"></script>
+</body>
+</html>
