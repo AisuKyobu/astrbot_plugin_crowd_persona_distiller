@@ -120,6 +120,27 @@ class GroupFriendStorage:
         )
         await self._conn.commit()
 
+    async def list_distillable_users(self, min_messages: int = 0) -> list[dict]:
+        """返回所有群的所有用户及蒸馏状态"""
+        cursor = await self._conn.execute(
+            """SELECT m.group_id, m.user_id, m.user_name,
+                      COUNT(*) as message_count, MAX(m.timestamp) as last_msg_at,
+                      p.slug, p.last_distill_at
+               FROM messages m
+               LEFT JOIN personas p ON m.group_id = p.group_id AND m.user_id = p.user_id
+               GROUP BY m.group_id, m.user_id
+               HAVING message_count >= ?
+               ORDER BY message_count DESC""",
+            (min_messages,),
+        )
+        rows = await cursor.fetchall()
+        results = []
+        for row in rows:
+            r = dict(row)
+            r["distilled"] = bool(r.get("slug"))
+            results.append(r)
+        return results
+
     # ---------- 群状态 ----------
 
     async def update_group_state(

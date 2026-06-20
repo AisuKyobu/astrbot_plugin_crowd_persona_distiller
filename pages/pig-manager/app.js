@@ -40,41 +40,99 @@ function switchTab(name) {
 async function loadPersonas() {
     statusText.textContent = "加载中...";
     try {
-        personas = await bridge.apiGet("personas");
-        renderPersonaList();
-        statusText.textContent = `共 ${personas.length} 个群友`;
+        const [distilled, allUsers] = await Promise.all([
+            bridge.apiGet("personas"),
+            bridge.apiGet("distillable"),
+        ]);
+        personas = distilled;
+        const distilledSlugs = new Set(distilled.map((p) => p.slug));
+
+        const pending = allUsers
+            .filter((u) => !distilledSlugs.has(u.slug) && u.reached_threshold)
+            .sort((a, b) => b.message_count - a.message_count);
+
+        const notReady = allUsers
+            .filter((u) => !distilledSlugs.has(u.slug) && !u.reached_threshold)
+            .sort((a, b) => b.message_count - a.message_count);
+
+        renderPersonaList(distilled, pending, notReady);
+        const total = distilled.length + pending.length + notReady.length;
+        statusText.textContent = `${distilled.length} 已蒸馏 / ${pending.length} 待蒸馏 / 共 ${total} 人`;
     } catch (e) {
         statusText.textContent = `加载失败: ${e.message}`;
         personaList.innerHTML = '<div class="empty">加载失败，请检查后端连接</div>';
     }
 }
 
-function renderPersonaList() {
-    if (!personas.length) {
-        personaList.innerHTML = '<div class="empty">还没有蒸馏任何群友。在群聊中使用 /qunyou distill &lt;名字&gt; 开始。</div>';
+function renderPersonaList(distilled, pending, notReady) {
+    const html = [];
+
+    if (distilled.length) {
+        html.push('<div class="section-title">已蒸馏群友</div>');
+        html.push(...distilled.map((p) => personaCard(p, true)));
+    }
+
+    if (pending.length) {
+        html.push('<div class="section-title">待蒸馏群友（已达到最少消息数）</div>');
+        html.push(...pending.map((u) => distillableCard(u)));
+    }
+
+    if (notReady.length) {
+        html.push('<div class="section-title">消息不足（尚无法蒸馏）</div>');
+        html.push(...notReady.map((u) => distillableCard(u)));
+    }
+
+    if (!html.length) {
+        personaList.innerHTML = '<div class="empty">还没有任何群聊消息。在群聊中发言或上传聊天记录导入数据。</div>';
         return;
     }
 
-    personaList.innerHTML = personas
-        .map(
-            (p) => `
-    <div class="card">
-      <div class="card-info">
-        <div class="card-name">${esc(p.name)} <span style="color:var(--text-secondary);font-weight:normal">[${esc(p.slug)}]</span></div>
-        <div class="card-meta">群 ${esc(p.group_id)} · ${p.message_count || 0} 条消息 · ${(p.updated_at || "").slice(0, 10)}</div>
-      </div>
-      <div class="card-actions">
-        <button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">蒸馏</button>
-      </div>
-    </div>`
-        )
-        .join("");
+    personaList.innerHTML = html.join("");
 
     document.querySelectorAll(".btn-distill").forEach((btn) => {
         btn.addEventListener("click", () =>
             doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name)
         );
     });
+}
+
+function personaCard(p, isDistilled) {
+    const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
+    return `
+    <div class="card">
+      <div class="card-info">
+        <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
+        <div class="card-meta">
+          群 ${esc(p.group_id)} · ${p.message_count || 0} 条 · ${ts || "—"}
+        </div>
+      </div>
+      <div class="card-actions">
+        ${isDistilled
+            ? `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
+            : ""}
+      </div>
+    </div>`;
+}
+
+function distillableCard(u) {
+    const lastTs = u.last_msg_at ? new Date(u.last_msg_at * 1000).toLocaleDateString("zh-CN") : "—";
+    const minNeeded = 50; // matches backend default
+    const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
+    return `
+    <div class="card">
+      <div class="card-info">
+        <div class="card-name">${esc(u.user_name)} <span class="user-id-tag">${esc(u.user_id)}</span></div>
+        <div class="card-meta">
+          群 ${esc(u.group_id)} · ${u.message_count} 条 · 最后发言 ${lastTs}
+          ${u.reached_threshold ? "" : `<span class="progress-bar"><span class="progress-fill" style="width:${bar}%"></span><span class="progress-text">${bar}%</span></span>`}
+        </div>
+      </div>
+      <div class="card-actions">
+        ${u.reached_threshold
+            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(u.user_name)}">蒸馏</button>`
+            : `<button class="btn" disabled>需 ${minNeeded} 条</button>`}
+      </div>
+    </div>`;
 }
 
 async function doDistill(groupId, userId, userName) {

@@ -266,6 +266,9 @@ class GroupFriendPlugin(Star):
             self.context.register_web_api(
                 f"{route_prefix}/group_users/<group_id>", self._api_group_users, ["GET"], "群用户列表"
             )
+            self.context.register_web_api(
+                f"{route_prefix}/distillable", self._api_distillable_users, ["GET"], "所有可蒸馏/已蒸馏用户列表"
+            )
 
     async def _api_list_personas(self):
         personas = self.persona_mgr.list_all()
@@ -511,3 +514,26 @@ class GroupFriendPlugin(Star):
     async def _api_group_users(self, group_id: str):
         users = await self.storage.list_active_users(group_id, min_messages=1)
         return _json(users)
+
+    async def _api_distillable_users(self):
+        min_messages = self.config.get("min_distill_messages", 50)
+        users = await self.storage.list_distillable_users(min_messages=0)
+        personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
+
+        results = []
+        for u in users:
+            uid = u["user_id"]
+            slug = u.get("slug", "")
+            p = personas.get(slug, {})
+            results.append({
+                "group_id": u["group_id"],
+                "user_id": uid,
+                "user_name": u["user_name"],
+                "message_count": u["message_count"],
+                "last_msg_at": u.get("last_msg_at"),
+                "distilled": u["distilled"],
+                "slug": slug,
+                "last_distill_at": p.get("last_distill_at", ""),
+                "reached_threshold": u["message_count"] >= min_messages,
+            })
+        return _json(results)

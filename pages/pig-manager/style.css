@@ -313,3 +313,53 @@ body {
   color: var(--text-secondary);
   font-size: 12px;
 }
+
+.section-title {
+  font-weight: 600;
+  font-size: 14px;
+  padding: 16px 0 8px;
+  color: var(--primary);
+  border-bottom: 1px solid var(--border);
+  margin-bottom: 8px;
+}
+
+.section-title:first-child {
+  padding-top: 0;
+}
+
+.slug-tag {
+  color: var(--text-secondary);
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.user-id-tag {
+  color: var(--text-secondary);
+  font-weight: normal;
+  font-size: 12px;
+}
+
+.progress-bar {
+  display: inline-flex;
+  align-items: center;
+  width: 80px;
+  height: 4px;
+  background: var(--border);
+  border-radius: 2px;
+  margin-left: 8px;
+  vertical-align: middle;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--primary);
+  border-radius: 2px;
+  transition: width 0.3s;
+}
+
+.progress-text {
+  font-size: 10px;
+  color: var(--text-secondary);
+  margin-left: 4px;
+}
