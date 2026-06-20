@@ -24,6 +24,7 @@ document.getElementById("btn-load-persona").addEventListener("click", loadPerson
 document.getElementById("btn-save-persona").addEventListener("click", savePersona);
 document.getElementById("btn-import-preview").addEventListener("click", previewImport);
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
+document.getElementById("group-filter").addEventListener("change", loadPersonas);
 
 loadPersonas();
 
@@ -55,6 +56,22 @@ async function loadPersonas() {
             .filter((u) => !distilledSlugs.has(u.slug) && !u.reached_threshold)
             .sort((a, b) => b.message_count - a.message_count);
 
+        // 构建群筛选下拉
+        const groups = new Map();
+        for (const u of [...distilled, ...pending, ...notReady]) {
+            const gid = String(u.group_id);
+            if (!groups.has(gid)) {
+                groups.set(gid, u.group_name || gid);
+            }
+        }
+        const filter = document.getElementById("group-filter");
+        const currentVal = filter.value;
+        filter.innerHTML = '<option value="">全部群</option>';
+        for (const [gid, gname] of groups) {
+            filter.innerHTML += `<option value="${esc(gid)}">${esc(gname || gid)}</option>`;
+        }
+        filter.value = currentVal;
+
         renderPersonaList(distilled, pending, notReady);
         const total = distilled.length + pending.length + notReady.length;
         statusText.textContent = `${distilled.length} 已蒸馏 / ${pending.length} 待蒸馏 / 共 ${total} 人`;
@@ -65,21 +82,26 @@ async function loadPersonas() {
 }
 
 function renderPersonaList(distilled, pending, notReady) {
+    const filter = document.getElementById("group-filter").value;
+    const f = (u) => !filter || String(u.group_id) === filter;
+    const d = distilled.filter(f);
+    const p = pending.filter(f);
+    const n = notReady.filter(f);
     const html = [];
 
-    if (distilled.length) {
+    if (d.length) {
         html.push('<div class="section-title">已蒸馏群友</div>');
-        html.push(...distilled.map((p) => personaCard(p, true)));
+        html.push(...d.map((p) => personaCard(p, true)));
     }
 
-    if (pending.length) {
+    if (p.length) {
         html.push('<div class="section-title">待蒸馏群友（已达到最少消息数）</div>');
-        html.push(...pending.map((u) => distillableCard(u)));
+        html.push(...p.map((u) => distillableCard(u)));
     }
 
-    if (notReady.length) {
+    if (n.length) {
         html.push('<div class="section-title">消息不足（尚无法蒸馏）</div>');
-        html.push(...notReady.map((u) => distillableCard(u)));
+        html.push(...n.map((u) => distillableCard(u)));
     }
 
     if (!html.length) {
@@ -98,12 +120,13 @@ function renderPersonaList(distilled, pending, notReady) {
 
 function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
+    const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
     return `
     <div class="card">
       <div class="card-info">
         <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
         <div class="card-meta">
-          群 ${esc(p.group_id)} · ${p.message_count || 0} 条 · ${ts || "—"}
+          ${gname} · ${p.message_count || 0} 条 · ${ts || "—"}
         </div>
       </div>
       <div class="card-actions">

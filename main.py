@@ -272,6 +272,10 @@ class GroupFriendPlugin(Star):
 
     async def _api_list_personas(self):
         personas = self.persona_mgr.list_all()
+        for p in personas:
+            gid = p.get("group_id", "")
+            state = await self.storage.get_group_state(gid) if gid else None
+            p["group_name"] = state.get("group_name", "") if state else ""
         return _json(personas)
 
     async def _api_distill(self):

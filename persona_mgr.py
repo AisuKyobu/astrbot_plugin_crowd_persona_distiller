@@ -141,7 +141,7 @@ class PersonaManager:
             f"## 聊天记录（共 {len(messages)} 条）\n{formatted}"
         )
 
-        slug = slugify(user_name)
+        slug = slugify(f"{user_name}_{group_id}") if group_id else slugify(user_name)
 
         try:
             llm_resp = await self.context.llm_generate(
