@@ -114,17 +114,9 @@ class PersonaManager:
         user_name: str,
         manual_tags: dict | None = None,
     ) -> Optional[str]:
+        """执行蒸馏。前置校验（provider/消息数）由调用方负责。"""
         provider_id = self.config.get("distill_provider", "")
         if not provider_id:
-            logger.error("[群友蒸馏] 未配置 distill_provider，无法蒸馏")
-            return None
-
-        min_msgs = self.config.get("min_distill_messages", 50)
-        count = await self.storage.get_user_message_count(group_id, user_id)
-        if count < min_msgs:
-            logger.warning(
-                f"[群友蒸馏] {user_name} 只有 {count} 条消息，未达到最低 {min_msgs} 条，无法蒸馏"
-            )
             return None
 
         messages = await self.storage.get_user_messages(group_id, user_id, limit=500)

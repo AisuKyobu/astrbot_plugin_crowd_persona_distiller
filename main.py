@@ -45,6 +45,10 @@ class GroupFriendPlugin(Star):
 
         self._register_web_apis()
 
+        if not self.config.get("distill_provider"):
+            logger.warning("[群友蒸馏] 未配置 distill_provider，蒸馏功能不可用，请前往插件设置配置")
+        if not self.config.get("reply_provider"):
+            logger.warning("[群友蒸馏] 未配置 reply_provider，回复/扮演功能不可用，请前往插件设置配置")
         logger.info("[群友蒸馏] 插件已初始化")
 
     async def terminate(self):
@@ -154,13 +158,22 @@ class GroupFriendPlugin(Star):
         user_name = matched["user_name"]
         count = matched["cnt"]
 
+        if not self.config.get("distill_provider"):
+            yield event.plain_result("请先在插件设置中配置「蒸馏分析用 LLM 提供商」（distill_provider），\n然后重新尝试蒸馏。")
+            return
+
+        min_msgs = self.config.get("min_distill_messages", 50)
+        if count < min_msgs:
+            yield event.plain_result(f"{user_name} 只有 {count} 条消息，未达到最低 {min_msgs} 条。\n请让该群友多发言，或降低插件设置中的「蒸馏最少消息数」。")
+            return
+
         yield event.plain_result(f"开始蒸馏 {user_name}（{count} 条消息），请稍候...")
 
         try:
             slug = await self.persona_mgr.distill(str(group_id), user_id, user_name)
             if slug:
                 yield event.plain_result(
-                    f"蒸馏完成！群友 [{slug}] {user_name} 已生成 Persona。\n触发回复：/qunyou reply {slug}"
+                    f"蒸馏完成！群友 [{slug}] {user_name} 已生成 Persona。"
                 )
             else:
                 yield event.plain_result("蒸馏失败，请检查日志。")
@@ -176,6 +189,10 @@ class GroupFriendPlugin(Star):
             yield event.plain_result("请在群聊中使用此指令。")
             return
 
+        if not self.config.get("reply_provider"):
+            yield event.plain_result("请先在插件设置中配置「回复生成用 LLM 提供商」（reply_provider）")
+            return
+
         personas = await self.storage.get_personas_by_group(str(group_id))
         matched = None
         for p in personas:
@@ -189,7 +206,7 @@ class GroupFriendPlugin(Star):
 
         result = await self.reply_engine.generate_reply(str(group_id))
         if not result:
-            yield event.plain_result("生成回复失败。")
+            yield event.plain_result("生成回复失败：请查看服务端日志排查")
             return
 
         text, slug = result
@@ -284,14 +301,24 @@ class GroupFriendPlugin(Star):
         user_id = payload.get("user_id", "")
         user_name = payload.get("user_name", "")
         if not group_id or not user_id:
-            return _err("missing group_id/user_id/user_name", status_code=400)
+            return _err("缺失 group_id/user_id", status_code=400)
+
+        if not self.config.get("distill_provider"):
+            return _err("请先在插件设置中配置「蒸馏分析用 LLM 提供商」（distill_provider）")
+
+        min_msgs = self.config.get("min_distill_messages", 50)
+        count = await self.storage.get_user_message_count(group_id, user_id)
+        if count < min_msgs:
+            return _err(f"消息不足（当前 {count} 条，需 ≥{min_msgs} 条），请让该群友多发言或降低最低消息数阈值")
+
         try:
             slug = await self.persona_mgr.distill(group_id, user_id, user_name)
             if slug:
                 return _json({"slug": slug, "name": user_name})
-            return _err("distill failed", status_code=500)
+            return _err("蒸馏失败：LLM 分析出错，请查看服务端日志")
         except Exception as e:
-            return _err(str(e), status_code=500)
+            logger.error(f"[群友蒸馏] distill exception: {e}", exc_info=True)
+            return _err(f"蒸馏异常：{e}")
 
     async def _api_get_persona(self, slug: str):
         content = self.persona_mgr.load_persona(slug)
