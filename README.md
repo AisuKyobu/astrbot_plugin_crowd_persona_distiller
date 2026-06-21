@@ -5,9 +5,12 @@
 Inspired by [pig-skill](https://github.com/Neko-Suwako/pig-skill).
 
 > [!NOTE]
-> 本插件基于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开发。
+> **插件名**：`astrbot_plugin_crowd_persona_distiller`
+> **版本**：v0.1.0
+> **适配平台**：aiocqhttp
+> **AstrBot 版本**：≥4.x
 >
-> [AstrBot](https://github.com/AstrBotDevs/AstrBot) 是一个适合个人和群组对话的智能助手，可以部署在 QQ、Telegram、飞书、钉钉、Slack、LINE、Discord 等数十个主流即时消息平台上。
+> 本插件基于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开发。
 
 ## 功能
 
