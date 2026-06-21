@@ -342,6 +342,17 @@ body {
   margin-bottom: 8px;
 }
 
+.form-row .input {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.form-row .hint {
+  display: block;
+  margin-top: 6px;
+}
+
 .radio-group {
   display: flex;
   gap: 16px;
