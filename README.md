@@ -95,6 +95,30 @@ pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 
 **导入时插件会自动识别：群名、所有发言用户、消息数，并排除系统消息和 图片/视频/卡片/合并转发 等非文本消息。重复导入同一文件不会产生重复数据。**
 
+## 称呼配置
+
+在"称呼管理" Tab 中可以为群友绑定自定义称呼，支持多别名：
+
+```
+格式: QQ号,主称呼,别名1,别名2
+示例: 2854208913,基长,基宝,长哥
+```
+
+| 管理方式 | 说明 |
+|---------|------|
+| WebUI → 称呼管理 | 表格视图，增删改查 |
+| `/nickname set @某人 称呼` | 群内 @ 某人直接绑定 |
+| `/nickname list` | 查看所有映射 |
+| `/nickname remove QQ号` | 删除映射 |
+
+**称呼的作用：**
+
+- 回复时，LLM 看到 `称呼（QQ: xxx）: 消息内容` 格式
+- 上下文开头注入"群友称呼参考"块，列出所有别名，LLM 据此识别群友
+- 蒸馏时，标题显示主称呼及别名（如 `## 基长（别名: 基宝, 长哥） 的聊天记录分类`）
+
+> **提示：** 如果蒸馏时未设定称呼，生成的 persona.md 中名字会使用群昵称。此时可在群友列表点击卡片 → 弹窗 → 手动编辑 persona.md 修改名字。下次回复和蒸馏会自动使用称呼映射中的名字。
+
 ## 配置
 
 | 配置项 | 说明 | 默认值 |
@@ -107,15 +131,16 @@ pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 | `reply_probability` | 回复触发概率 | 0.05 |
 | `reply_cooldown_minutes` | 同群回复冷却（分钟） | 120 |
 | `cold_group_hours` | 冷群检测阈值（小时） | 4 |
-| `enable_name_change` | 扮演时改群名 | true |
+| `enable_name_change` | 扮演时将 Bot 群名片改为该群友称呼 | true |
+| `nickname_mappings` | 群友称呼映射（QQ号,主称呼,别名...） | `[]` |
 
 ## WebUI 面板
 
 | Tab | 功能 |
 |-----|------|
-| 群友列表 | 查看已蒸馏/待蒸馏/消息不足的群友，按群筛选，触发蒸馏 |
+| 群友列表 | 选群 → 卡片列表 → 点击卡片弹窗（编辑 persona.md / 重蒸馏 / 删除） |
+| 称呼管理 | QQ号 → 称呼映射表，支持多别名，增删改查 |
 | 群配置 | 按群设置扮演模式（随机/指定/关闭）、@触发开关 |
-| Persona 编辑器 | 加载、编辑、保存群友的 persona.md |
 | 数据导入 | 上传 qq-chat-exporter JSON，预览并导入聊天记录 |
 
 ## 去重机制

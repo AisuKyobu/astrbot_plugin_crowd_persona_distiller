@@ -239,7 +239,11 @@ class PersonaManager:
             else:
                 daily.append(m)
 
-        display_name = self._resolve_name(messages[0]["user_id"], user_name) if messages else user_name
+        uid = messages[0]["user_id"] if messages else ""
+        display_name = self._resolve_name(uid, user_name)
+        aliases = self._get_aliases(uid)
+        if len(aliases) > 1:
+            display_name += f"（别名: {', '.join(aliases[1:])}）"
 
         lines = [
             f"## {display_name} 的聊天记录分类",
@@ -296,6 +300,14 @@ class PersonaManager:
                 if uid.strip() == user_id and rest.strip():
                     return rest.split(",")[0].strip()
         return fallback
+
+    def _get_aliases(self, user_id: str) -> list[str]:
+        for item in self.config.get("nickname_mappings", []):
+            if isinstance(item, str):
+                uid, sep, rest = item.partition(",")
+                if uid.strip() == user_id and rest.strip():
+                    return [a.strip() for a in rest.split(",") if a.strip()]
+        return []
 
     async def get_random_persona_for_group(self, group_id: str) -> Optional[dict]:
         personas = await self.storage.get_personas_by_group(group_id)
