@@ -134,6 +134,12 @@ class GroupFriendPlugin(Star):
                 group_id_str, last_message_at=time.time()
             )
 
+            # 首次遇到该群时异步获取群名称
+            state = await self.storage.get_group_state(group_id_str)
+            if not state or not state.get("group_name"):
+                import asyncio
+                asyncio.create_task(self._fetch_group_name(group_id_str, event))
+
             should_reply = await self.reply_engine.should_reply_on_message(event)
             if should_reply:
                 await self.reply_engine.do_reply(group_id_str, event)
@@ -205,6 +211,30 @@ class GroupFriendPlugin(Star):
         self.config["nickname_mappings"] = new_mappings
         self.config.save_config()
         yield event.plain_result(f"已删除 {uid} 的称呼映射")
+
+    async def _fetch_group_name(self, group_id: str, event: AstrMessageEvent):
+        '''尝试从平台 API 获取群名称'''
+        try:
+            bot = None
+            if hasattr(event, "bot") and event.bot:
+                bot = event.bot
+            else:
+                platforms = getattr(self.context, "platform_manager", None)
+                if platforms:
+                    for plat in platforms:
+                        b = getattr(plat, "bot", None)
+                        if b and hasattr(b, "call_action"):
+                            bot = b
+                            break
+            if not bot or not hasattr(bot, "call_action"):
+                return
+            info = await bot.call_action("get_group_info", group_id=int(group_id))
+            gname = str(info.get("group_name", "")) if info else ""
+            if gname:
+                await self.storage.update_group_state(group_id, group_name=gname)
+                logger.info(f"[群友蒸馏] 获取到群名称: {group_id} → {gname}")
+        except Exception:
+            pass
 
     # ---------- WebAPI ----------
 
