@@ -180,6 +180,91 @@ class PersonaManager:
         logger.info(f"[群友蒸馏] 蒸馏完成: {user_name} ({slug}), {count} 条消息")
         return slug
 
+    async def incremental_update(
+        self, slug: str, group_id: str, user_id: str
+    ) -> Optional[dict]:
+        """增量更新：用新消息追加到现有 persona.md"""
+        provider_id = self.config.get("distill_provider", "")
+        if not provider_id:
+            return None
+
+        existing = self.load_persona(slug)
+        if not existing:
+            return None
+
+        meta = self.load_meta(slug) or {}
+        last_at = meta.get("last_distill_at", "")
+        since = 0
+        if last_at:
+            try:
+                since = datetime.fromisoformat(last_at).timestamp()
+            except Exception:
+                pass
+
+        new_messages = await self.storage.get_user_messages_since(
+            group_id, user_id, since, limit=300
+        )
+        if not new_messages:
+            return {"status": "no_new_messages", "message": "没有新消息，无需更新"}
+
+        merger_prompt = (
+            Path(__file__).parent / "prompts" / "merger.md"
+        ).read_text(encoding="utf-8")
+
+        formatted = self._format_messages_for_llm(
+            new_messages, meta.get("name", "")
+        )
+
+        build_prompt = (
+            f"{merger_prompt}\n\n"
+            f"## 现有 persona.md\n```markdown\n{existing}\n```\n\n"
+            f"## 新聊天记录\n{formatted}\n\n"
+            f"请判断新内容应该更新 persona.md 的哪个部分，输出增量更新。"
+        )
+
+        try:
+            llm_resp = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt=build_prompt,
+                system_prompt="",
+            )
+            patch = llm_resp.completion_text.strip() if llm_resp else ""
+        except Exception as e:
+            logger.error(f"[群友蒸馏] 增量更新 LLM 调用失败: {e}")
+            return None
+
+        if not patch:
+            return None
+
+        # 追加 patch 到现有 persona.md
+        now = datetime.now(timezone.utc).isoformat()
+        version = meta.get("version", "v1")
+        next_version = f"v{int(version.lstrip('v')) + 1}"
+
+        new_content = (
+            f"{existing.rstrip()}\n\n"
+            f"## 增量更新记录（{now}）\n\n"
+            f"{patch}\n"
+        )
+        self.save_persona(slug, new_content)
+
+        meta["version"] = next_version
+        meta["updated_at"] = now
+        meta["last_distill_at"] = now
+        self.save_meta(slug, meta)
+
+        await self.storage.update_persona_index(
+            slug, message_count=meta.get("message_count", 0), last_distill_at=now
+        )
+
+        logger.info(f"[群友蒸馏] 增量更新完成: {slug} ({version} → {next_version})")
+        return {
+            "status": "ok",
+            "slug": slug,
+            "version": next_version,
+            "patch_preview": patch[:200],
+        }
+
     async def _build_persona(
         self,
         analysis_text: str,

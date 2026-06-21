@@ -124,6 +124,16 @@ class GroupFriendStorage:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows]
 
+    async def get_user_messages_since(
+        self, group_id: str, user_id: str, since_ts: float, limit: int = 500
+    ) -> list[dict]:
+        cursor = await self._conn.execute(
+            "SELECT * FROM messages WHERE group_id = ? AND user_id = ? AND timestamp > ? ORDER BY timestamp ASC LIMIT ?",
+            (group_id, user_id, since_ts, limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def get_user_message_count(self, group_id: str, user_id: str) -> int:
         cursor = await self._conn.execute(
             "SELECT COUNT(*) as cnt FROM messages WHERE group_id = ? AND user_id = ?",

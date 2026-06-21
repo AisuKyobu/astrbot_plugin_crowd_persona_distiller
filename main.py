@@ -228,6 +228,12 @@ class GroupFriendPlugin(Star):
                 "删除 Persona 及聊天记录",
             )
             self.context.register_web_api(
+                f"{route_prefix}/persona/incremental",
+                self._api_incremental_update,
+                ["POST"],
+                "增量更新 Persona",
+            )
+            self.context.register_web_api(
                 f"{route_prefix}/import/preview",
                 self._api_import_preview,
                 ["POST"],
@@ -336,6 +342,18 @@ class GroupFriendPlugin(Star):
         await self.storage.delete_user_messages(group_id, user_id)
         logger.info(f"[群友蒸馏] 已删除 persona: {slug}")
         return _json({"deleted": slug})
+
+    async def _api_incremental_update(self):
+        payload = (await request.get_json()) or {}
+        slug = payload.get("slug", "")
+        group_id = payload.get("group_id", "")
+        user_id = payload.get("user_id", "")
+        if not slug or not group_id or not user_id:
+            return _err("missing slug/group_id/user_id", status_code=400)
+        result = await self.persona_mgr.incremental_update(slug, group_id, user_id)
+        if not result:
+            return _err("增量更新失败，请查看服务端日志")
+        return _json(result)
 
     async def _api_import_chunk(self):
         payload = (await request.get_json()) or {}

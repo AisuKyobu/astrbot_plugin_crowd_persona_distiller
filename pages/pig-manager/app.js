@@ -31,6 +31,7 @@ modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); }
 document.getElementById("modal-save").addEventListener("click", savePersonaContent);
 document.getElementById("modal-redistill").addEventListener("click", redistillFromModal);
 document.getElementById("modal-delete").addEventListener("click", deleteFromModal);
+document.getElementById("modal-incremental").addEventListener("click", incrementalFromModal);
 
 // Nickname modal bindings
 const nickModal = document.getElementById("nickname-modal");
@@ -289,10 +290,31 @@ async function redistillFromModal() {
             user_name: _modalName,
         });
         status.textContent = `蒸馏完成: ${esc(result.name)}`;
-        closeModal();
+        await openModal(result.slug, _modalGroupId, _modalUserId, result.name);
         loadPersonas();
     } catch (e) {
         status.textContent = `蒸馏失败: ${esc(e.message)}`;
+    }
+}
+
+async function incrementalFromModal() {
+    if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
+    const status = document.getElementById("modal-status");
+    status.textContent = "增量更新中...";
+    try {
+        const result = await bridge.apiPost("persona/incremental", {
+            slug: _modalSlug,
+            group_id: _modalGroupId,
+            user_id: _modalUserId,
+        });
+        if (result.status === "no_new_messages") {
+            status.textContent = result.message;
+        } else {
+            status.textContent = `增量更新完成 (${result.version})`;
+            await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
+        }
+    } catch (e) {
+        status.textContent = `增量更新失败: ${esc(e.message)}`;
     }
 }
 
