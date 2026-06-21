@@ -32,6 +32,13 @@ document.getElementById("modal-save").addEventListener("click", savePersonaConte
 document.getElementById("modal-redistill").addEventListener("click", redistillFromModal);
 document.getElementById("modal-delete").addEventListener("click", deleteFromModal);
 
+// Nickname modal bindings
+const nickModal = document.getElementById("nickname-modal");
+document.getElementById("nickname-modal-close").addEventListener("click", closeNicknameModal);
+document.getElementById("nickname-modal-cancel").addEventListener("click", closeNicknameModal);
+nickModal.addEventListener("click", (e) => { if (e.target === nickModal) closeNicknameModal(); });
+document.getElementById("nickname-modal-save").addEventListener("click", saveNicknameFromModal);
+
 loadPersonas();
 
 // ---- Tab Switching ----
@@ -521,6 +528,8 @@ async function saveConfig() {
 
 // ---- Nickname Management ----
 
+let _nickEditUid = "";
+
 async function loadNicknames() {
     const status = document.getElementById("nickname-status");
     const tbody = document.querySelector("#nickname-table tbody");
@@ -539,7 +548,7 @@ function renderNicknameTable(nicks) {
     const tbody = document.querySelector("#nickname-table tbody");
     const entries = Object.entries(nicks);
 
-    document.getElementById("btn-nickname-add").onclick = () => openEditRow("", "");
+    document.getElementById("btn-nickname-add").onclick = () => openNicknameModal("", "");
 
     if (!entries.length) {
         tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼</td></tr>';
@@ -561,66 +570,51 @@ function renderNicknameTable(nicks) {
         .join("");
 
     tbody.querySelectorAll("[data-action='edit']").forEach((btn) => {
-        btn.addEventListener("click", () => openEditRow(btn.dataset.uid, btn.dataset.name));
+        btn.addEventListener("click", () => openNicknameModal(btn.dataset.uid, btn.dataset.name));
     });
     tbody.querySelectorAll("[data-action='delete']").forEach((btn) => {
         btn.addEventListener("click", () => deleteNickname(btn.dataset.uid, btn.dataset.name));
     });
 }
 
-function openEditRow(uid, name) {
-    const tbody = document.querySelector("#nickname-table tbody");
-    const isNew = !uid;
-    const rows = tbody.querySelectorAll("tr");
-    const lastRow = rows[rows.length - 1];
+function openNicknameModal(uid, name) {
+    _nickEditUid = uid;
+    document.getElementById("nickname-modal-title").textContent = uid ? "编辑称呼" : "添加称呼";
+    const uidInput = document.getElementById("nickname-modal-uid");
+    uidInput.value = uid;
+    uidInput.disabled = !!uid;
+    document.getElementById("nickname-modal-name").value = name;
+    document.getElementById("nickname-modal-status").textContent = "";
+    document.getElementById("nickname-modal").style.display = "flex";
+    if (!uid) uidInput.focus();
+    else document.getElementById("nickname-modal-name").focus();
+}
 
-    if (lastRow && lastRow.querySelector(".nickname-add-row")) {
-        lastRow.remove();
+function closeNicknameModal() {
+    document.getElementById("nickname-modal").style.display = "none";
+}
+
+async function saveNicknameFromModal() {
+    const uid = document.getElementById("nickname-modal-uid").value.trim();
+    const name = document.getElementById("nickname-modal-name").value.trim();
+    const status = document.getElementById("nickname-modal-status");
+
+    if (!uid || !name) {
+        status.textContent = "QQ号和称呼不能为空";
+        return;
     }
-
-    const tr = document.createElement("tr");
-    tr.innerHTML = `
-      <td><input type="text" class="input nickname-input-uid" placeholder="QQ号" value="${esc(uid)}" ${isNew ? "" : "disabled"} /></td>
-      <td><input type="text" class="input nickname-input-name" placeholder="主称呼,别名1,别名2" value="${esc(name)}" /></td>
-      <td>
-        <div class="nickname-actions">
-          <button class="btn btn-save nickname-btn-save">保存</button>
-          <button class="btn nickname-btn-cancel">取消</button>
-        </div>
-      </td>`;
-    tbody.appendChild(tr);
-
-    const inputName = tr.querySelector(".nickname-input-name");
-    inputName.focus();
-    inputName.select();
-
-    tr.querySelector(".nickname-btn-save").addEventListener("click", async () => {
-        const newUid = tr.querySelector(".nickname-input-uid").value.trim();
-        const newName = inputName.value.trim();
-        if (!newUid || !newName) {
-            document.getElementById("nickname-status").textContent = "QQ号和称呼不能为空";
-            return;
-        }
-        if (isNew && !/^\d+$/.test(newUid)) {
-            document.getElementById("nickname-status").textContent = "QQ号应为纯数字";
-            return;
-        }
-        try {
-            await bridge.apiPost("nickname", { user_id: newUid, nickname: newName });
-            loadNicknames();
-        } catch (e) {
-            document.getElementById("nickname-status").textContent = `保存失败: ${e.message}`;
-        }
-    });
-
-    tr.querySelector(".nickname-btn-cancel").addEventListener("click", () => {
-        tr.remove();
-    });
-
-    inputName.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") tr.querySelector(".nickname-btn-save").click();
-        if (e.key === "Escape") tr.remove();
-    });
+    if (!_nickEditUid && !/^\d+$/.test(uid)) {
+        status.textContent = "QQ号应为纯数字";
+        return;
+    }
+    const saveUid = _nickEditUid || uid;
+    try {
+        await bridge.apiPost("nickname", { user_id: saveUid, nickname: name });
+        closeNicknameModal();
+        loadNicknames();
+    } catch (e) {
+        status.textContent = `保存失败: ${e.message}`;
+    }
 }
 
 async function deleteNickname(uid, name) {
