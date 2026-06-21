@@ -16,7 +16,6 @@ tabs.forEach((t) =>
     t.addEventListener("click", () => switchTab(t.dataset.tab))
 );
 
-document.getElementById("btn-refresh").addEventListener("click", loadPersonas);
 document.getElementById("btn-import-preview").addEventListener("click", previewImport);
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
 document.getElementById("group-filter").addEventListener("change", loadPersonas);
