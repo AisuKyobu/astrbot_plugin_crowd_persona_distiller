@@ -64,7 +64,7 @@
 ---
 
 #### Task 3: WebUI 群友管理面板
-**Description:** 创建 plugin page（`pages/pig-manager/`），包含群友列表、蒸馏按钮、persona 编辑器、数据导入。
+**Description:** 创建 plugin page（`pages/persona-distiller/`），包含群友列表、蒸馏按钮、persona 编辑器、数据导入。
 
 **Acceptance criteria:**
 - [ ] 群友列表：显示 slug/昵称/消息数/上次蒸馏时间
@@ -74,16 +74,16 @@
 - [ ] 使用 `window.AstrBotPluginPage` bridge 通信
 
 **Verification:**
-- [ ] HTML 文件在 `pages/pig-manager/index.html`
+- [ ] HTML 文件在 `pages/persona-distiller/index.html`
 - [ ] 使用 bridge API（apiGet/apiPost/upload）
 - [ ] 亮暗主题 CSS 变量适配
 
 **Dependencies:** Task 2
 
 **Files likely touched:**
-- `pages/pig-manager/index.html`
-- `pages/pig-manager/app.js`
-- `pages/pig-manager/style.css`
+- `pages/persona-distiller/index.html`
+- `pages/persona-distiller/app.js`
+- `pages/persona-distiller/style.css`
 
 **Estimated scope:** Medium (3-5 files)
 

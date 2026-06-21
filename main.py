@@ -234,6 +234,12 @@ class GroupFriendPlugin(Star):
                 "增量更新 Persona",
             )
             self.context.register_web_api(
+                f"{route_prefix}/persona/correct",
+                self._api_correct_persona,
+                ["POST"],
+                "修正人格（根据用户反馈）",
+            )
+            self.context.register_web_api(
                 f"{route_prefix}/import/preview",
                 self._api_import_preview,
                 ["POST"],
@@ -354,6 +360,25 @@ class GroupFriendPlugin(Star):
         if not result:
             return _err("增量更新失败，请查看服务端日志")
         return _json(result)
+
+    async def _api_correct_persona(self):
+        payload = (await request.get_json()) or {}
+        slug = payload.get("slug", "")
+        correction_text = payload.get("correction", "").strip()
+        if not slug or not correction_text:
+            return _err("missing slug/correction", status_code=400)
+
+        if not self.config.get("distill_provider"):
+            return _err("请先在插件设置中配置「蒸馏分析用 LLM 提供商」（distill_provider）")
+
+        try:
+            corrected = await self.persona_mgr.correct_persona(slug, correction_text)
+            if not corrected:
+                return _err("修正失败：LLM 调用出错，请查看服务端日志")
+            return _json({"slug": slug, "corrected": True})
+        except Exception as e:
+            logger.error(f"[群友蒸馏] correct exception: {e}", exc_info=True)
+            return _err(f"修正异常：{e}")
 
     async def _api_import_chunk(self):
         payload = (await request.get_json()) or {}

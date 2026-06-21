@@ -165,7 +165,7 @@ astrbot_plugin_crowd_persona_distiller/
 │   ├── persona_analyzer.md
 │   └── persona_builder.md
 └── pages/               # WebUI 前端
-    └── pig-manager/
+    └── persona-distiller/
         ├── index.html
         ├── style.css
         └── app.js

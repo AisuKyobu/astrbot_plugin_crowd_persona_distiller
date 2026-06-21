@@ -54,7 +54,7 @@ astrbot_plugin_crowd_persona_distiller/
 │   ├── persona_analyzer.md    # 性格分析 Prompt
 │   └── persona_builder.md     # Persona 生成模板
 └── pages/
-    └── pig-manager/
+    └── persona-distiller/
         ├── index.html
         ├── app.js
         └── style.css

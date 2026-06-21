@@ -32,6 +32,14 @@ document.getElementById("modal-save").addEventListener("click", savePersonaConte
 document.getElementById("modal-redistill").addEventListener("click", redistillFromModal);
 document.getElementById("modal-delete").addEventListener("click", deleteFromModal);
 document.getElementById("modal-incremental").addEventListener("click", incrementalFromModal);
+document.getElementById("modal-correct").addEventListener("click", openCorrectModal);
+
+// Correct modal bindings
+const correctModal = document.getElementById("correct-modal");
+document.getElementById("correct-modal-close").addEventListener("click", closeCorrectModal);
+document.getElementById("correct-modal-cancel").addEventListener("click", closeCorrectModal);
+correctModal.addEventListener("click", (e) => { if (e.target === correctModal) closeCorrectModal(); });
+document.getElementById("correct-modal-submit").addEventListener("click", submitCorrect);
 
 // Nickname modal bindings
 const nickModal = document.getElementById("nickname-modal");
@@ -333,6 +341,43 @@ async function deleteFromModal() {
         loadPersonas();
     } catch (e) {
         status.textContent = `删除失败: ${esc(e.message)}`;
+    }
+}
+
+// ---- Correction Modal ----
+
+function openCorrectModal() {
+    if (!_modalSlug) return;
+    document.getElementById("correct-modal-title").textContent = `修正人格 - ${esc(_modalName)}`;
+    document.getElementById("correct-modal-text").value = "";
+    document.getElementById("correct-modal-status").textContent = "";
+    document.getElementById("correct-modal").style.display = "flex";
+    document.getElementById("correct-modal-text").focus();
+}
+
+function closeCorrectModal() {
+    document.getElementById("correct-modal").style.display = "none";
+}
+
+async function submitCorrect() {
+    if (!_modalSlug) return;
+    const correctionText = document.getElementById("correct-modal-text").value.trim();
+    if (!correctionText) {
+        document.getElementById("correct-modal-status").textContent = "请输入修正意见";
+        return;
+    }
+    const status = document.getElementById("correct-modal-status");
+    status.textContent = "修正中...";
+    try {
+        const result = await bridge.apiPost("persona/correct", {
+            slug: _modalSlug,
+            correction: correctionText,
+        });
+        status.textContent = "修正完成！";
+        closeCorrectModal();
+        await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
+    } catch (e) {
+        status.textContent = `修正失败: ${esc(e.message)}`;
     }
 }
 

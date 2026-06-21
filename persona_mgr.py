@@ -265,6 +265,56 @@ class PersonaManager:
             "patch_preview": patch[:200],
         }
 
+    async def correct_persona(
+        self, slug: str, correction_text: str
+    ) -> Optional[str]:
+        """根据用户修正意见，调用 LLM 更新 persona.md"""
+        provider_id = self.config.get("distill_provider", "")
+        if not provider_id:
+            return None
+
+        existing = self.load_persona(slug)
+        if not existing:
+            return None
+
+        correction_prompt = (
+            Path(__file__).parent / "prompts" / "correction_handler.md"
+        ).read_text(encoding="utf-8")
+
+        build_prompt = (
+            f"{correction_prompt}\n\n"
+            f"## 当前 persona.md\n```markdown\n{existing}\n```\n\n"
+            f"## 用户修正意见\n{correction_text}\n\n"
+            f"请输出修正后的完整 persona.md 内容。"
+        )
+
+        try:
+            llm_resp = await self.context.llm_generate(
+                chat_provider_id=provider_id,
+                prompt=build_prompt,
+            )
+            corrected = llm_resp.completion_text.strip() if llm_resp else ""
+        except Exception as e:
+            logger.error(f"[群友蒸馏] 人格修正 LLM 调用失败: {e}")
+            return None
+
+        if not corrected:
+            return None
+
+        self.save_persona(slug, corrected)
+
+        now = datetime.now(timezone.utc).isoformat()
+        meta = self.load_meta(slug) or {}
+        meta["updated_at"] = now
+        self.save_meta(slug, meta)
+
+        await self.storage.update_persona_index(
+            slug, message_count=meta.get("message_count", 0), last_distill_at=now
+        )
+
+        logger.info(f"[群友蒸馏] 人格修正完成: {slug}")
+        return corrected
+
     async def _build_persona(
         self,
         analysis_text: str,
