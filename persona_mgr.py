@@ -119,6 +119,7 @@ class PersonaManager:
         if not provider_id:
             return None
 
+        count = await self.storage.get_user_message_count(group_id, user_id)
         messages = await self.storage.get_user_messages(group_id, user_id, limit=500)
         if not messages:
             return None
