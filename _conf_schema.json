@@ -1,11 +1,13 @@
 {
   "distill_provider": {
     "type": "string",
+    "default": "",
     "_special": "select_provider",
     "description": "蒸馏分析用 LLM 提供商（需长上下文+强分析能力）"
   },
   "reply_provider": {
     "type": "string",
+    "default": "",
     "_special": "select_provider",
     "description": "回复生成用 LLM 提供商（快速+便宜即可）"
   },

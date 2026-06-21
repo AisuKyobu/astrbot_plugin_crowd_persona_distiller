@@ -45,9 +45,12 @@ class GroupFriendPlugin(Star):
 
         self._register_web_apis()
 
-        if not self.config.get("distill_provider"):
+        dip = self.config.get("distill_provider")
+        rep = self.config.get("reply_provider")
+        logger.info(f"[群友蒸馏] 当前配置: distill_provider={dip!r}, reply_provider={rep!r}")
+        if not dip:
             logger.warning("[群友蒸馏] 未配置 distill_provider，蒸馏功能不可用，请前往插件设置配置")
-        if not self.config.get("reply_provider"):
+        if not rep:
             logger.warning("[群友蒸馏] 未配置 reply_provider，回复/扮演功能不可用，请前往插件设置配置")
         logger.info("[群友蒸馏] 插件已初始化")
 
