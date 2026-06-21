@@ -13,6 +13,7 @@ data/
 # Dev docs
 plan.md
 spec.md
+PRODUCT.md
 
 # IDE
 .vscode/

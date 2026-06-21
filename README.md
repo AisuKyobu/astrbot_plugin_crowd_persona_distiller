@@ -1,14 +1,13 @@
 # astrbot_plugin_crowd_persona_distiller
 
-群友蒸馏师 — 自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
+`群友蒸馏师` — 基于[群友.skill](https://github.com/Neko-Suwako/pig-skill).魔改的群友蒸馏与自动回复bot，自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
 
-Inspired by [pig-skill](https://github.com/Neko-Suwako/pig-skill).
 
 > [!NOTE]
 > **插件名**：`astrbot_plugin_crowd_persona_distiller`
 > **版本**：v0.1.0
 > **适配平台**：aiocqhttp
-> **AstrBot 版本**：≥4.15
+> **AstrBot 版本**：≥4.25
 >
 > 本插件基于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开发。
 
@@ -70,11 +69,6 @@ pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 ## 数据导入
 
 插件支持导入 [qq-chat-exporter](https://github.com/shuakami/qq-chat-exporter) 导出的**群聊和私聊** JSON 格式聊天记录。
-
-> [!NOTE]
-> **群聊**：在 qq-chat-exporter 中选择群进行导出，文件名如 `group_群名_822355274_xxx.json`，导入后在 WebUI 选择「群聊」类型并填入群号。
-> 
-> **私聊**：在 qq-chat-exporter 中选择好友进行导出，文件名如 `private_对方昵称_123456_xxx.json`，导入后在 WebUI 选择「私聊」类型并填入对方 QQ。私聊消息会与群聊消息合并用于蒸馏人格分析。
 
 ### 导出步骤
 
