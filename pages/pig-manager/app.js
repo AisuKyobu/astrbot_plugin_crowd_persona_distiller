@@ -10,7 +10,6 @@ const editorStatus = document.getElementById("editor-status");
 
 let personas = [];
 let importToken = "";
-let nicknameMap = {};
 
 // ---- Init ----
 
@@ -39,6 +38,7 @@ function switchTab(name) {
     contents.forEach((c) => c.classList.toggle("active", c.id === `tab-${name}`));
     if (name === "editor") refreshPersonaSelect();
     if (name === "config") loadGroupConfigs();
+    if (name === "nicknames") loadNicknames();
 }
 
 // ---- Persona List ----
@@ -46,12 +46,10 @@ function switchTab(name) {
 async function loadPersonas() {
     statusText.textContent = "加载中...";
     try {
-        const [distilled, allUsers, nicks] = await Promise.all([
+        const [distilled, allUsers] = await Promise.all([
             bridge.apiGet("personas"),
             bridge.apiGet("distillable"),
-            bridge.apiGet("nicknames"),
         ]);
-        nicknameMap = nicks || {};
         personas = distilled;
         const distilledSlugs = new Set(distilled.map((p) => p.slug));
 
@@ -123,34 +121,23 @@ function renderPersonaList(distilled, pending, notReady) {
             doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name, btn)
         );
     });
-
-    document.querySelectorAll(".btn-nick-edit").forEach((btn) => {
-        btn.addEventListener("click", () =>
-            editNickname(btn.dataset.uid, btn.dataset.name)
-        );
-    });
 }
 
 function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
-    const uid = esc(p.user_id);
-    const nick = nicknameMap[uid] || "";
-    const displayName = nick ? `${esc(p.name)} <span class="nickname-badge" title="称呼: ${esc(nick)}" data-uid="${uid}">${esc(nick)}</span>` : esc(p.name);
-    const nickAction = `<button class="btn btn-small btn-nick-edit" data-uid="${uid}" data-name="${esc(p.name)}" title="编辑称呼">✎</button>`;
     return `
     <div class="card${isDistilled ? " distilled" : ""}">
       <div class="card-info">
-        <div class="card-name">${displayName} <span class="slug-tag">[${esc(p.slug)}]</span></div>
+        <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
         <div class="card-meta">
           ${gname} · ${p.message_count || 0} 条 · ${ts || "—"}
         </div>
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${uid}" data-name="${esc(p.name)}">重新蒸馏</button>`
+            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
             : ""}
-        ${nickAction}
       </div>
     </div>`;
 }
@@ -158,20 +145,13 @@ function personaCard(p, isDistilled) {
 function distillableCard(u) {
     const lastTs = u.last_msg_at ? new Date(u.last_msg_at * 1000).toLocaleDateString("zh-CN") : "—";
     const gname = u.group_name ? `${esc(u.group_name)} (${esc(u.group_id)})` : `群 ${esc(u.group_id)}`;
-    const uid = esc(u.user_id);
     const uname = u.user_name === u.user_id ? `${esc(u.user_name)} (QQ)` : esc(u.user_name);
-    const displayUname = uid === esc(u.user_name) ? esc(u.user_name) : uname;
-    const nick = nicknameMap[uid] || "";
-    const displayName = nick
-        ? `${displayUname} <span class="nickname-badge" title="称呼: ${esc(nick)}" data-uid="${uid}">${esc(nick)}</span>`
-        : displayUname;
     const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
-    const nickAction = `<button class="btn btn-small btn-nick-edit" data-uid="${uid}" data-name="${esc(u.user_name)}" title="编辑称呼">✎</button>`;
     return `
     <div class="card">
       <div class="card-info">
-        <div class="card-name">${displayName} <span class="user-id-tag">${uid}</span></div>
+        <div class="card-name">${uname} <span class="user-id-tag">${esc(u.user_id)}</span></div>
         <div class="card-meta">
           ${gname} · ${u.message_count} 条 · 最后发言 ${lastTs}
           ${u.reached_threshold ? "" : `<span class="progress-bar"><span class="progress-fill" style="width:${bar}%"></span><span class="progress-text">${bar}%</span></span>`}
@@ -179,9 +159,8 @@ function distillableCard(u) {
       </div>
       <div class="card-actions">
         ${u.reached_threshold
-            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${uid}" data-name="${esc(u.user_name)}">蒸馏</button>`
+            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(u.user_name)}">蒸馏</button>`
             : `<button class="btn" disabled>需 ${minNeeded} 条</button>`}
-        ${nickAction}
       </div>
     </div>`;
 }
@@ -208,24 +187,6 @@ async function doDistill(groupId, userId, userName, btn) {
         showDistillBanner(`蒸馏失败：${esc(e.message)}`, false);
     } finally {
         _distilling = false;
-    }
-}
-
-async function editNickname(uid, currentName) {
-    const current = nicknameMap[uid] || "";
-    const label = currentName || uid;
-    const input = prompt(`为 ${label} 设置称呼：${current ? "\n（当前: " + current + "）" : ""}`, current || label);
-    if (input === null) return;
-    const nick = input.trim();
-    try {
-        if (nick) {
-            await bridge.apiPost("nickname", { user_id: uid, nickname: nick });
-        } else {
-            await bridge.apiPost("nickname/delete", { user_id: uid });
-        }
-        loadPersonas();
-    } catch (e) {
-        alert("保存失败: " + e.message);
     }
 }
 
@@ -491,5 +452,118 @@ async function saveConfig() {
         document.getElementById("config-status").textContent = "已保存";
     } catch (e) {
         document.getElementById("config-status").textContent = `保存失败: ${e.message}`;
+    }
+}
+
+// ---- Nickname Management ----
+
+async function loadNicknames() {
+    const status = document.getElementById("nickname-status");
+    const tbody = document.querySelector("#nickname-table tbody");
+    status.textContent = "加载中...";
+    try {
+        const nicks = await bridge.apiGet("nicknames");
+        renderNicknameTable(nicks || {});
+        status.textContent = `共 ${Object.keys(nicks || {}).length} 条映射`;
+    } catch (e) {
+        status.textContent = `加载失败: ${e.message}`;
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">加载失败</td></tr>';
+    }
+}
+
+function renderNicknameTable(nicks) {
+    const tbody = document.querySelector("#nickname-table tbody");
+    const entries = Object.entries(nicks);
+    if (!entries.length) {
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼</td></tr>';
+        return;
+    }
+    tbody.innerHTML = entries
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([uid, name]) => `
+        <tr>
+          <td><span class="nickname-uid">${esc(uid)}</span></td>
+          <td><span class="nickname-value">${esc(name)}</span></td>
+          <td>
+            <div class="nickname-actions">
+              <button class="btn" data-action="edit" data-uid="${esc(uid)}" data-name="${esc(name)}">编辑</button>
+              <button class="btn" data-action="delete" data-uid="${esc(uid)}" data-name="${esc(name)}">删除</button>
+            </div>
+          </td>
+        </tr>`)
+        .join("");
+
+    tbody.querySelectorAll("[data-action='edit']").forEach((btn) => {
+        btn.addEventListener("click", () => openEditRow(btn.dataset.uid, btn.dataset.name));
+    });
+    tbody.querySelectorAll("[data-action='delete']").forEach((btn) => {
+        btn.addEventListener("click", () => deleteNickname(btn.dataset.uid, btn.dataset.name));
+    });
+
+    document.getElementById("btn-nickname-add").onclick = () => openEditRow("", "");
+}
+
+function openEditRow(uid, name) {
+    const tbody = document.querySelector("#nickname-table tbody");
+    const isNew = !uid;
+    const rows = tbody.querySelectorAll("tr");
+    const lastRow = rows[rows.length - 1];
+
+    if (lastRow && lastRow.querySelector(".nickname-add-row")) {
+        lastRow.remove();
+    }
+
+    const tr = document.createElement("tr");
+    tr.innerHTML = `
+      <td><input type="text" class="input nickname-input-uid" placeholder="QQ号" value="${esc(uid)}" ${isNew ? "" : "disabled"} /></td>
+      <td><input type="text" class="input nickname-input-name" placeholder="称呼" value="${esc(name)}" /></td>
+      <td>
+        <div class="nickname-actions">
+          <button class="btn btn-save nickname-btn-save">保存</button>
+          <button class="btn nickname-btn-cancel">取消</button>
+        </div>
+      </td>`;
+    tbody.appendChild(tr);
+
+    const inputName = tr.querySelector(".nickname-input-name");
+    inputName.focus();
+    inputName.select();
+
+    tr.querySelector(".nickname-btn-save").addEventListener("click", async () => {
+        const newUid = tr.querySelector(".nickname-input-uid").value.trim();
+        const newName = inputName.value.trim();
+        if (!newUid || !newName) {
+            document.getElementById("nickname-status").textContent = "QQ号和称呼不能为空";
+            return;
+        }
+        if (isNew && !/^\d+$/.test(newUid)) {
+            document.getElementById("nickname-status").textContent = "QQ号应为纯数字";
+            return;
+        }
+        try {
+            await bridge.apiPost("nickname", { user_id: newUid, nickname: newName });
+            loadNicknames();
+        } catch (e) {
+            document.getElementById("nickname-status").textContent = `保存失败: ${e.message}`;
+        }
+    });
+
+    tr.querySelector(".nickname-btn-cancel").addEventListener("click", () => {
+        tr.remove();
+    });
+
+    inputName.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") tr.querySelector(".nickname-btn-save").click();
+        if (e.key === "Escape") tr.remove();
+    });
+}
+
+async function deleteNickname(uid, name) {
+    if (!confirm(`确定删除 ${esc(name)} (${esc(uid)}) 的称呼映射？`)) return;
+    try {
+        await bridge.apiPost("nickname/delete", { user_id: uid });
+        loadNicknames();
+    } catch (e) {
+        document.getElementById("nickname-status").textContent = `删除失败: ${e.message}`;
     }
 }

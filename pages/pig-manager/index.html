@@ -13,6 +13,7 @@
       <nav class="tabs">
         <button class="tab active" data-tab="personas">群友列表</button>
         <button class="tab" data-tab="config">群配置</button>
+        <button class="tab" data-tab="nicknames">称呼管理</button>
         <button class="tab" data-tab="editor">Persona 编辑器</button>
         <button class="tab" data-tab="import">数据导入</button>
       </nav>
@@ -72,6 +73,22 @@
             <span id="config-status" class="status"></span>
           </div>
         </div>
+      </section>
+
+      <!-- 称呼管理 -->
+      <section id="tab-nicknames" class="tab-content">
+        <div class="toolbar">
+          <button id="btn-nickname-add" class="btn btn-primary">+ 添加称呼</button>
+          <span id="nickname-status" class="status"></span>
+        </div>
+        <table id="nickname-table" class="data-table">
+          <thead>
+            <tr><th>QQ号</th><th>称呼</th><th>操作</th></tr>
+          </thead>
+          <tbody>
+            <tr><td colspan="3" class="empty">加载中...</td></tr>
+          </tbody>
+        </table>
       </section>
 
       <!-- Persona 编辑器 -->
