@@ -130,10 +130,22 @@ class GroupFriendPlugin(Star):
     @nickname_cmd_group.command("set")
     async def nickname_set(self, event: AstrMessageEvent, user_id: str, nickname: str):
         uid = user_id.strip()
-        name = nickname.strip()
+        name = nickname.strip() if nickname else ""
+
+        # 支持 @某人 语法：从消息链提取 At 目标的 QQ
+        for c in event.get_messages():
+            qq = str(getattr(c, "qq", ""))
+            if qq and qq != "all":
+                uid = qq
+                at_name = getattr(c, "name", "") or ""
+                if not name:
+                    name = at_name or uid
+                break
+
         if not uid or not name:
-            yield event.plain_result("用法: /nickname set <QQ号> <称呼>")
+            yield event.plain_result("用法: /nickname set <QQ号|@某人> <称呼>\n    例: /nickname set @基长 基长")
             return
+
         mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
         existing = [i for i, m in enumerate(mappings) if m.startswith(uid + ",")]
         entry = f"{uid},{name}"
