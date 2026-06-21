@@ -1,6 +1,6 @@
 # astrbot_plugin_crowd_persona_distiller
 
-`群友蒸馏师` — 基于[群友.skill](https://github.com/Neko-Suwako/pig-skill).魔改的群友蒸馏与自动回复bot，自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
+`群友蒸馏师` — 基于 [群友.skill](https://github.com/Neko-Suwako/pig-skill). 魔改的群友蒸馏与自动回复bot，自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
 
 
 > [!NOTE]
@@ -183,3 +183,4 @@ astrbot_plugin_crowd_persona_distiller/
 
 - [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
 - [AstrBot 插件开发文档](https://docs.astrbot.app/dev/star/plugin-new.html)
+- [pig-skill](https://github.com/Neko-Suwako/pig-skill)
