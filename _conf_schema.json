@@ -63,10 +63,6 @@
     "default": 20,
     "description": "扮演回复时附带的最近上下文消息数"
   },
-  "nickname_mappings": {
-    "type": "list",
-    "description": "用户称呼映射表，每行格式: QQ号,称呼\n例：2854208913,基长"
-  },
   "custom_reply_system_prompt": {
     "type": "string",
     "default": "",
