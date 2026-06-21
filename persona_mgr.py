@@ -239,8 +239,10 @@ class PersonaManager:
             else:
                 daily.append(m)
 
+        display_name = self._resolve_name(messages[0]["user_id"], user_name) if messages else user_name
+
         lines = [
-            f"## {user_name} 的聊天记录分类",
+            f"## {display_name} 的聊天记录分类",
             "",
             f"### 长消息（{len(long_msgs)} 条，权重最高）",
         ]
@@ -286,6 +288,14 @@ class PersonaManager:
         if impression:
             lines.append(f"印象：{impression}")
         return "\n".join(lines) if lines else "（无手动标签）"
+
+    def _resolve_name(self, user_id: str, fallback: str) -> str:
+        for item in self.config.get("nickname_mappings", []):
+            if isinstance(item, str):
+                uid, sep, name = item.partition(",")
+                if uid.strip() == user_id and name.strip():
+                    return name.strip()
+        return fallback
 
     async def get_random_persona_for_group(self, group_id: str) -> Optional[dict]:
         personas = await self.storage.get_personas_by_group(group_id)

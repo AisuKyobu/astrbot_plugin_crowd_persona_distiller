@@ -324,7 +324,16 @@ class ReplyEngine:
             return "（暂无聊天记录）"
         lines = ["以下是最近的群聊天记录，请用你的语气自然地回复：", ""]
         for m in messages:
-            name = m["user_name"]
+            uid = m.get("user_id", "")
+            name = self._resolve_name(uid, m.get("user_name", ""))
             content = m["content"]
             lines.append(f"{name}: {content}")
         return "\n".join(lines)
+
+    def _resolve_name(self, user_id: str, fallback: str) -> str:
+        for item in self.config.get("nickname_mappings", []):
+            if isinstance(item, str) and item.startswith(user_id):
+                uid, sep, name = item.partition(",")
+                if uid.strip() == user_id and name.strip():
+                    return name.strip()
+        return fallback

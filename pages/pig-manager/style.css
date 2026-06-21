@@ -496,3 +496,38 @@ body {
   color: var(--text-secondary);
   margin-left: 4px;
 }
+
+.nickname-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
+  margin-left: 6px;
+  vertical-align: middle;
+}
+
+[data-theme="dark"] .nickname-badge {
+  background: #78350f;
+  color: #fbbf24;
+}
+
+.btn-small {
+  padding: 2px 8px !important;
+  font-size: 12px !important;
+}
+
+.btn-nick-edit {
+  color: var(--text-secondary);
+  border: 1px dashed var(--border);
+  background: transparent;
+  cursor: pointer;
+  border-radius: var(--radius);
+}
+
+.btn-nick-edit:hover {
+  color: var(--primary);
+  border-color: var(--primary);
+}

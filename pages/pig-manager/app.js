@@ -10,6 +10,7 @@ const editorStatus = document.getElementById("editor-status");
 
 let personas = [];
 let importToken = "";
+let nicknameMap = {};
 
 // ---- Init ----
 
@@ -45,10 +46,12 @@ function switchTab(name) {
 async function loadPersonas() {
     statusText.textContent = "加载中...";
     try {
-        const [distilled, allUsers] = await Promise.all([
+        const [distilled, allUsers, nicks] = await Promise.all([
             bridge.apiGet("personas"),
             bridge.apiGet("distillable"),
+            bridge.apiGet("nicknames"),
         ]);
+        nicknameMap = nicks || {};
         personas = distilled;
         const distilledSlugs = new Set(distilled.map((p) => p.slug));
 
@@ -120,23 +123,34 @@ function renderPersonaList(distilled, pending, notReady) {
             doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name, btn)
         );
     });
+
+    document.querySelectorAll(".btn-nick-edit").forEach((btn) => {
+        btn.addEventListener("click", () =>
+            editNickname(btn.dataset.uid, btn.dataset.name)
+        );
+    });
 }
 
 function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
+    const uid = esc(p.user_id);
+    const nick = nicknameMap[uid] || "";
+    const displayName = nick ? `${esc(p.name)} <span class="nickname-badge" title="称呼: ${esc(nick)}" data-uid="${uid}">${esc(nick)}</span>` : esc(p.name);
+    const nickAction = `<button class="btn btn-small btn-nick-edit" data-uid="${uid}" data-name="${esc(p.name)}" title="编辑称呼">✎</button>`;
     return `
     <div class="card${isDistilled ? " distilled" : ""}">
       <div class="card-info">
-        <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
+        <div class="card-name">${displayName} <span class="slug-tag">[${esc(p.slug)}]</span></div>
         <div class="card-meta">
           ${gname} · ${p.message_count || 0} 条 · ${ts || "—"}
         </div>
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
+            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${uid}" data-name="${esc(p.name)}">重新蒸馏</button>`
             : ""}
+        ${nickAction}
       </div>
     </div>`;
 }
@@ -144,13 +158,20 @@ function personaCard(p, isDistilled) {
 function distillableCard(u) {
     const lastTs = u.last_msg_at ? new Date(u.last_msg_at * 1000).toLocaleDateString("zh-CN") : "—";
     const gname = u.group_name ? `${esc(u.group_name)} (${esc(u.group_id)})` : `群 ${esc(u.group_id)}`;
+    const uid = esc(u.user_id);
     const uname = u.user_name === u.user_id ? `${esc(u.user_name)} (QQ)` : esc(u.user_name);
+    const displayUname = uid === esc(u.user_name) ? esc(u.user_name) : uname;
+    const nick = nicknameMap[uid] || "";
+    const displayName = nick
+        ? `${displayUname} <span class="nickname-badge" title="称呼: ${esc(nick)}" data-uid="${uid}">${esc(nick)}</span>`
+        : displayUname;
     const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
+    const nickAction = `<button class="btn btn-small btn-nick-edit" data-uid="${uid}" data-name="${esc(u.user_name)}" title="编辑称呼">✎</button>`;
     return `
     <div class="card">
       <div class="card-info">
-        <div class="card-name">${uname} <span class="user-id-tag">${esc(u.user_id)}</span></div>
+        <div class="card-name">${displayName} <span class="user-id-tag">${uid}</span></div>
         <div class="card-meta">
           ${gname} · ${u.message_count} 条 · 最后发言 ${lastTs}
           ${u.reached_threshold ? "" : `<span class="progress-bar"><span class="progress-fill" style="width:${bar}%"></span><span class="progress-text">${bar}%</span></span>`}
@@ -158,8 +179,9 @@ function distillableCard(u) {
       </div>
       <div class="card-actions">
         ${u.reached_threshold
-            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(u.user_name)}">蒸馏</button>`
+            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${uid}" data-name="${esc(u.user_name)}">蒸馏</button>`
             : `<button class="btn" disabled>需 ${minNeeded} 条</button>`}
+        ${nickAction}
       </div>
     </div>`;
 }
@@ -186,6 +208,24 @@ async function doDistill(groupId, userId, userName, btn) {
         showDistillBanner(`蒸馏失败：${esc(e.message)}`, false);
     } finally {
         _distilling = false;
+    }
+}
+
+async function editNickname(uid, currentName) {
+    const current = nicknameMap[uid] || "";
+    const label = currentName || uid;
+    const input = prompt(`为 ${label} 设置称呼：${current ? "\n（当前: " + current + "）" : ""}`, current || label);
+    if (input === null) return;
+    const nick = input.trim();
+    try {
+        if (nick) {
+            await bridge.apiPost("nickname", { user_id: uid, nickname: nick });
+        } else {
+            await bridge.apiDel("nickname/" + uid);
+        }
+        loadPersonas();
+    } catch (e) {
+        alert("保存失败: " + e.message);
     }
 }
 

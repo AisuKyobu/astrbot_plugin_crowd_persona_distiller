@@ -121,6 +121,55 @@ class GroupFriendPlugin(Star):
         except Exception as e:
             logger.error(f"[群友蒸馏] 消息处理异常: {e}")
 
+    # ---------- 昵称管理 ----------
+
+    @filter.command_group("nickname")
+    async def nickname_cmd_group(self, event: AstrMessageEvent):
+        pass
+
+    @nickname_cmd_group.command("set")
+    async def nickname_set(self, event: AstrMessageEvent, user_id: str, nickname: str):
+        uid = user_id.strip()
+        name = nickname.strip()
+        if not uid or not name:
+            yield event.plain_result("用法: /nickname set <QQ号> <称呼>")
+            return
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
+        existing = [i for i, m in enumerate(mappings) if m.startswith(uid + ",")]
+        entry = f"{uid},{name}"
+        if existing:
+            mappings[existing[0]] = entry
+            yield event.plain_result(f"已更新 {uid} 的称呼为: {name}")
+        else:
+            mappings.append(entry)
+            yield event.plain_result(f"已设置 {uid} 的称呼为: {name}")
+        self.config["nickname_mappings"] = mappings
+        self.config.save_config()
+
+    @nickname_cmd_group.command("list")
+    async def nickname_list(self, event: AstrMessageEvent):
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str) and "," in m]
+        if not mappings:
+            yield event.plain_result("还没有设置任何称呼")
+            return
+        lines = ["称呼映射：", ""]
+        for m in mappings:
+            uid, _, name = m.partition(",")
+            lines.append(f"  {uid.strip()} → {name.strip()}")
+        yield event.plain_result("\n".join(lines))
+
+    @nickname_cmd_group.command("remove")
+    async def nickname_remove(self, event: AstrMessageEvent, user_id: str):
+        uid = user_id.strip()
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
+        new_mappings = [m for m in mappings if not m.startswith(uid + ",")]
+        if len(new_mappings) == len(mappings):
+            yield event.plain_result(f"未找到 {uid} 的称呼映射")
+            return
+        self.config["nickname_mappings"] = new_mappings
+        self.config.save_config()
+        yield event.plain_result(f"已删除 {uid} 的称呼映射")
+
     # ---------- WebAPI ----------
 
     def _register_web_apis(self):
@@ -179,6 +228,15 @@ class GroupFriendPlugin(Star):
             )
             self.context.register_web_api(
                 f"{route_prefix}/group_configs", self._api_list_group_configs, ["GET"], "列出所有群配置"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/nicknames", self._api_list_nicknames, ["GET"], "列出所有称呼映射"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/nickname", self._api_set_nickname, ["POST"], "设置/更新称呼映射"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/nickname/<user_id>", self._api_delete_nickname, ["DELETE"], "删除称呼映射"
             )
 
     async def _api_list_personas(self):
@@ -513,3 +571,37 @@ class GroupFriendPlugin(Star):
                 "at_trigger": bool(g.get("at_trigger", 1)),
             })
         return _json(result)
+
+    async def _api_list_nicknames(self):
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str) and "," in m]
+        result = {}
+        for m in mappings:
+            uid, _, name = m.partition(",")
+            result[uid.strip()] = name.strip()
+        return _json(result)
+
+    async def _api_set_nickname(self):
+        payload = (await request.get_json()) or {}
+        user_id = payload.get("user_id", "").strip()
+        nickname = payload.get("nickname", "").strip()
+        if not user_id or not nickname:
+            return _err("缺失 user_id 或 nickname", status_code=400)
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
+        entry = f"{user_id},{nickname}"
+        existing = [i for i, m in enumerate(mappings) if m.startswith(user_id + ",")]
+        if existing:
+            mappings[existing[0]] = entry
+        else:
+            mappings.append(entry)
+        self.config["nickname_mappings"] = mappings
+        self.config.save_config()
+        return _json({"user_id": user_id, "nickname": nickname})
+
+    async def _api_delete_nickname(self, user_id: str):
+        mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
+        new_mappings = [m for m in mappings if not m.startswith(user_id + ",")]
+        if len(new_mappings) == len(mappings):
+            return _err("not found", status_code=404)
+        self.config["nickname_mappings"] = new_mappings
+        self.config.save_config()
+        return _json({"deleted": user_id})
