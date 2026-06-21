@@ -221,7 +221,7 @@ async function editNickname(uid, currentName) {
         if (nick) {
             await bridge.apiPost("nickname", { user_id: uid, nickname: nick });
         } else {
-            await bridge.apiDel("nickname/" + uid);
+            await bridge.apiPost("nickname/delete", { user_id: uid });
         }
         loadPersonas();
     } catch (e) {

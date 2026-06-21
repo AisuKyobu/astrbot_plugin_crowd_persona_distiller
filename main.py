@@ -248,7 +248,7 @@ class GroupFriendPlugin(Star):
                 f"{route_prefix}/nickname", self._api_set_nickname, ["POST"], "设置/更新称呼映射"
             )
             self.context.register_web_api(
-                f"{route_prefix}/nickname/<user_id>", self._api_delete_nickname, ["DELETE"], "删除称呼映射"
+                f"{route_prefix}/nickname/delete", self._api_delete_nickname, ["POST"], "删除称呼映射"
             )
 
     async def _api_list_personas(self):
@@ -609,7 +609,11 @@ class GroupFriendPlugin(Star):
         self.config.save_config()
         return _json({"user_id": user_id, "nickname": nickname})
 
-    async def _api_delete_nickname(self, user_id: str):
+    async def _api_delete_nickname(self):
+        payload = (await request.get_json()) or {}
+        user_id = payload.get("user_id", "").strip()
+        if not user_id:
+            return _err("缺失 user_id", status_code=400)
         mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
         new_mappings = [m for m in mappings if not m.startswith(user_id + ",")]
         if len(new_mappings) == len(mappings):

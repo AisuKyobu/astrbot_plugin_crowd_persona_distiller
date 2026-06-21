@@ -520,14 +520,19 @@ body {
 }
 
 .btn-nick-edit {
-  color: var(--text-secondary);
-  border: 1px dashed var(--border);
+  color: var(--primary);
+  border: 1px solid var(--primary);
   background: transparent;
   cursor: pointer;
   border-radius: var(--radius);
+  padding: 2px 8px;
+  font-size: 13px;
+  opacity: 0.7;
+  transition: opacity 0.15s;
 }
 
 .btn-nick-edit:hover {
-  color: var(--primary);
-  border-color: var(--primary);
+  opacity: 1;
+  background: var(--primary);
+  color: #fff;
 }
