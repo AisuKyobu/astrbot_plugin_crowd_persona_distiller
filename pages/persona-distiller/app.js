@@ -440,10 +440,15 @@ async function previewImport() {
         const gname = summary.group_name || "";
         const total = summary.total_messages || 0;
         const users = summary.users || [];
+        const detectedChatType = summary.chat_type || "group";
+
+        // 自动设置聊天类型
+        document.querySelector(`input[name="chat_type"][value="${detectedChatType}"]`).checked = true;
 
         document.getElementById("import-group-id").value = gid;
 
-        let html = `<p><strong>${gname ? esc(gname) + " " : ""}</strong>解析到 <strong>${total}</strong> 条消息，<strong>${users.length}</strong> 个用户</p>`;
+        const typeLabel = detectedChatType === "private" ? "私聊" : "群聊";
+        let html = `<p><strong>${typeLabel}</strong> · ${gname ? esc(gname) + " · " : ""}解析到 <strong>${total}</strong> 条消息，<strong>${users.length}</strong> 个用户</p>`;
 
         if (users.length > 0) {
             html += '<div class="user-checkboxes">';
@@ -490,6 +495,8 @@ async function confirmImport() {
         return;
     }
 
+    const chatType = document.querySelector("input[name='chat_type']:checked")?.value || "group";
+
     showImportPreview('<div class="empty">导入中...</div>');
 
     try {
@@ -497,6 +504,7 @@ async function confirmImport() {
             import_token: importToken,
             group_id: groupId,
             user_ids: user_ids,
+            chat_type: chatType,
         });
 
         const results = result.results || [];

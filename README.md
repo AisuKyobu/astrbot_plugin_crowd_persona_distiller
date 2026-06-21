@@ -63,10 +63,12 @@ pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 
 ## 数据导入
 
-插件支持导入 [qq-chat-exporter](https://github.com/shuakami/qq-chat-exporter) 导出的 **群聊** JSON 格式聊天记录。
+插件支持导入 [qq-chat-exporter](https://github.com/shuakami/qq-chat-exporter) 导出的**群聊和私聊** JSON 格式聊天记录。
 
-> [!IMPORTANT]
-> **仅支持群聊导出，不支持私聊/好友聊天记录。** 插件所有功能（蒸馏、扮演回复、冷群检测）均以群为维度设计，私聊消息缺少群号无法入库。导出时请在 qq-chat-exporter 中选择群聊（而非好友/私聊）进行导出。
+> [!NOTE]
+> **群聊**：在 qq-chat-exporter 中选择群进行导出，文件名如 `group_群名_822355274_xxx.json`，导入后在 WebUI 选择「群聊」类型并填入群号。
+> 
+> **私聊**：在 qq-chat-exporter 中选择好友进行导出，文件名如 `private_对方昵称_123456_xxx.json`，导入后在 WebUI 选择「私聊」类型并填入对方 QQ。私聊消息会与群聊消息合并用于蒸馏人格分析。
 
 ### 导出步骤
 

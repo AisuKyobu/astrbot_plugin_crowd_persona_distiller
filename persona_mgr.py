@@ -119,8 +119,8 @@ class PersonaManager:
         if not provider_id:
             return None
 
-        count = await self.storage.get_user_message_count(group_id, user_id)
-        messages = await self.storage.get_user_messages(group_id, user_id, limit=500)
+        count = await self.storage.get_user_all_message_count(group_id, user_id)
+        messages = await self.storage.get_user_all_messages(group_id, user_id, limit=500)
         if not messages:
             return None
 
@@ -201,7 +201,7 @@ class PersonaManager:
             except Exception:
                 pass
 
-        new_messages = await self.storage.get_user_messages_since(
+        new_messages = await self.storage.get_user_all_messages_since(
             group_id, user_id, since, limit=300
         )
         if not new_messages:
@@ -346,6 +346,7 @@ class PersonaManager:
         user_id: str,
         user_name: str,
         messages: list[dict],
+        chat_type: str = "group",
     ) -> int:
         count = 0
         for msg in messages:
@@ -357,9 +358,9 @@ class PersonaManager:
                 ts = int(ts)
             else:
                 ts = None
-            await self.storage.record_message(group_id, user_id, user_name, content, ts)
+            await self.storage.record_message(group_id, user_id, user_name, content, ts, chat_type=chat_type)
             count += 1
-        logger.info(f"[群友蒸馏] 导入 {user_name} 的 {count} 条消息")
+        logger.info(f"[群友蒸馏] 导入 {user_name} 的 {count} 条消息 (chat_type={chat_type})")
         return count
 
     # ---------- 辅助 ----------

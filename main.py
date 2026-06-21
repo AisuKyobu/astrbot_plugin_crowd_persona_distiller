@@ -308,7 +308,7 @@ class GroupFriendPlugin(Star):
             return _err("请先在插件设置中配置「蒸馏分析用 LLM 提供商」（distill_provider）")
 
         min_msgs = self.config.get("min_distill_messages", 50)
-        count = await self.storage.get_user_message_count(group_id, user_id)
+        count = await self.storage.get_user_all_message_count(group_id, user_id)
         if count < min_msgs:
             return _err(f"消息不足（当前 {count} 条，需 ≥{min_msgs} 条），请让该群友多发言或降低最低消息数阈值")
 
@@ -540,6 +540,7 @@ class GroupFriendPlugin(Star):
         token = payload.get("import_token", "")
         group_id = payload.get("group_id", "")
         user_ids = payload.get("user_ids", [])
+        chat_type = payload.get("chat_type", "group")
 
         if not token:
             return _err("missing import_token", status_code=400)
@@ -555,8 +556,8 @@ class GroupFriendPlugin(Star):
         try:
             from .chat_parser import parse_qq_export_json
 
-            # 存储群名称
-            if isinstance(data, dict):
+            # 存储群名称（仅群聊）
+            if isinstance(data, dict) and chat_type == "group":
                 chat_info = data.get("chatInfo") or {}
                 gname = str(chat_info.get("name", "")) if isinstance(chat_info, dict) else ""
                 if gname:
@@ -581,12 +582,12 @@ class GroupFriendPlugin(Star):
 
                 if messages:
                     count = await self.persona_mgr.import_from_messages(
-                        group_id, uid, user_name, messages
+                        group_id, uid, user_name, messages, chat_type=chat_type
                     )
                     results.append(
                         {"user_id": uid, "user_name": user_name, "imported": count}
                     )
-                    logger.info(f"[群友蒸馏] import execute: {user_name}({uid}) -> {count} msgs")
+                    logger.info(f"[群友蒸馏] import execute: {user_name}({uid}) -> {count} msgs (chat_type={chat_type})")
 
             await self.delete_kv_data(f"import_{token}")
             logger.info(f"[群友蒸馏] 导入完成: {len(results)} 个用户, 群 {group_id}")

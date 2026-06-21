@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS messages (
     user_id TEXT NOT NULL,
     user_name TEXT NOT NULL,
     content TEXT NOT NULL,
-    timestamp INTEGER NOT NULL
+    timestamp INTEGER NOT NULL,
+    chat_type TEXT NOT NULL DEFAULT 'group'
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_group_user
@@ -77,11 +78,18 @@ class GroupFriendStorage:
                 await self._conn.commit()
             except Exception:
                 pass
-        # 迁移: 建去重索引
+        # 迁移: chat_type 列
         try:
+            await self._conn.execute("ALTER TABLE messages ADD COLUMN chat_type TEXT NOT NULL DEFAULT 'group'")
+            await self._conn.commit()
+        except Exception:
+            pass
+        # 迁移: 重建去重索引（包含 chat_type）
+        try:
+            await self._conn.execute("DROP INDEX IF EXISTS idx_messages_dedup")
             await self._conn.execute(
                 "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup "
-                "ON messages(group_id, user_id, timestamp, content)"
+                "ON messages(group_id, user_id, timestamp, content, chat_type)"
             )
             await self._conn.commit()
         except Exception:
@@ -104,13 +112,14 @@ class GroupFriendStorage:
         user_name: str,
         content: str,
         ts: Optional[int] = None,
+        chat_type: str = "group",
     ):
         if ts is None:
             ts = int(time.time())
         await self._conn.execute(
-            "INSERT OR IGNORE INTO messages (group_id, user_id, user_name, content, timestamp) "
-            "VALUES (?, ?, ?, ?, ?)",
-            (group_id, user_id, user_name, content, ts),
+            "INSERT OR IGNORE INTO messages (group_id, user_id, user_name, content, timestamp, chat_type) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (group_id, user_id, user_name, content, ts, chat_type),
         )
         await self._conn.commit()
 
@@ -141,6 +150,45 @@ class GroupFriendStorage:
         )
         row = await cursor.fetchone()
         return row["cnt"] if row else 0
+
+    async def get_user_all_message_count(self, group_id: str, user_id: str) -> int:
+        """统计用户在指定群的群聊消息 + 该用户的私聊消息总数"""
+        cursor = await self._conn.execute(
+            "SELECT COUNT(*) as cnt FROM messages WHERE "
+            "(group_id = ? AND user_id = ? AND chat_type = 'group') OR "
+            "(user_id = ? AND chat_type = 'private')",
+            (group_id, user_id, user_id),
+        )
+        row = await cursor.fetchone()
+        return row["cnt"] if row else 0
+
+    async def get_user_all_messages(
+        self, group_id: str, user_id: str, limit: int = 500
+    ) -> list[dict]:
+        """获取用户在指定群的群聊消息 + 该用户的私聊消息，时间排序取前 N 条"""
+        cursor = await self._conn.execute(
+            "SELECT * FROM messages WHERE "
+            "(group_id = ? AND user_id = ? AND chat_type = 'group') OR "
+            "(user_id = ? AND chat_type = 'private') "
+            "ORDER BY timestamp ASC LIMIT ?",
+            (group_id, user_id, user_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
+    async def get_user_all_messages_since(
+        self, group_id: str, user_id: str, since_ts: float, limit: int = 500
+    ) -> list[dict]:
+        """增量查询：群聊 + 私聊消息中 timestamp > since_ts"""
+        cursor = await self._conn.execute(
+            "SELECT * FROM messages WHERE timestamp > ? AND ("
+            "(group_id = ? AND user_id = ? AND chat_type = 'group') OR "
+            "(user_id = ? AND chat_type = 'private')) "
+            "ORDER BY timestamp ASC LIMIT ?",
+            (since_ts, group_id, user_id, user_id, limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
 
     async def get_recent_messages(self, group_id: str, limit: int = 20) -> list[dict]:
         cursor = await self._conn.execute(

@@ -97,10 +97,17 @@
       <section id="tab-import" class="tab-content">
         <div class="import-section">
           <h3>上传 QQ 聊天记录 (JSON)</h3>
-          <p class="hint">支持 <a href="https://github.com/shuakami/qq-chat-exporter" target="_blank">qq-chat-exporter</a> 导出的<strong>群聊</strong> JSON，<span class="hint-warn">不支持私聊/好友聊天记录</span></p>
+          <p class="hint">支持 <a href="https://github.com/shuakami/qq-chat-exporter" target="_blank">qq-chat-exporter</a> 导出的群聊和私聊 JSON</p>
           <div class="import-form">
-            <label class="label">目标群号</label>
-            <input type="text" id="import-group-id" class="input" placeholder="留空仅预览不导入" />
+            <div class="form-row">
+              <label class="label">聊天类型</label>
+              <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="chat_type" value="group" checked> 群聊</label>
+                <label class="radio-label"><input type="radio" name="chat_type" value="private"> 私聊</label>
+              </div>
+            </div>
+            <label class="label">目标群号 / 对方 QQ</label>
+            <input type="text" id="import-group-id" class="input" placeholder="群聊填群号，私聊填对方 QQ" />
             <label class="label">目标人物昵称</label>
             <input type="text" id="import-target-name" class="input" placeholder="从聊天记录中筛选该人的消息" />
             <label class="label">聊天记录文件 (.json)</label>

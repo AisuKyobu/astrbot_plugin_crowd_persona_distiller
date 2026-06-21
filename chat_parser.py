@@ -169,6 +169,9 @@ def extract_import_summary(data, filename: str = "") -> dict:
     chat_info = data.get("chatInfo") if isinstance(data, dict) else {}
     group_name = str(chat_info.get("name", "")) if isinstance(chat_info, dict) else ""
     self_uin = str(chat_info.get("selfUin", "") or chat_info.get("selfUid", "")) if isinstance(chat_info, dict) else ""
+    chat_type_raw = str(chat_info.get("type", "")).lower() if isinstance(chat_info, dict) else ""
+    is_private = chat_type_raw in ("friend", "private", "buddy")
+    chat_type = "private" if is_private else "group"
 
     group_id = ""
     if filename:
@@ -177,6 +180,10 @@ def extract_import_summary(data, filename: str = "") -> dict:
         match = re.search(r"group_.*?_(\d+)_", filename)
         if match:
             group_id = match.group(1)
+        else:
+            match = re.search(r"(?:private|friend)_.*?_(\d+)_", filename)
+            if match:
+                group_id = match.group(1)
 
     user_map: dict[str, dict] = {}
     for msg in raw:
@@ -207,6 +214,7 @@ def extract_import_summary(data, filename: str = "") -> dict:
     return {
         "group_id": group_id,
         "group_name": group_name,
+        "chat_type": chat_type,
         "total_messages": sum(u["message_count"] for u in users),
         "users": users,
     }
