@@ -581,6 +581,7 @@ class GroupFriendPlugin(Star):
                 "group_name": group_names.get(gid, ""),
                 "user_id": uid,
                 "user_name": u["user_name"],
+                "name": p.get("name") or u["user_name"],
                 "message_count": u["message_count"],
                 "last_msg_at": u.get("last_msg_at"),
                 "distilled": u["distilled"],
