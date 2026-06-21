@@ -6,5 +6,6 @@ dist/
 build/
 skills/
 AGENTS.md
+opencode.json
 *.db
 data/
