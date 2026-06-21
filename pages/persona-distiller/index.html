@@ -167,16 +167,20 @@
 
     <!-- 修正弹窗 -->
     <div id="correct-modal" class="modal-overlay" style="display:none">
-      <div class="modal modal-sm">
+      <div class="modal">
         <div class="modal-header">
           <h2 id="correct-modal-title">修正人格</h2>
           <button class="modal-close" id="correct-modal-close">&times;</button>
         </div>
         <div class="modal-body">
+          <p class="correct-hint">LLM 会读取当前 persona.md，根据你的反馈输出修正后的完整人格。修正后会自动保存。</p>
           <div class="form-row">
-            <label class="label">觉得哪里不对劲</label>
-            <textarea id="correct-modal-text" class="editor" rows="6" placeholder="例如：他不会主动找人聊天，应该改掉 Layer 2 里的描述..."></textarea>
-            <span class="hint">描述当前人格哪里不对、应该怎么改，LLM 会根据你的反馈更新 persona.md</span>
+            <textarea id="correct-modal-text" class="editor" rows="8" placeholder="描述你觉得当前人格哪里不对…
+例如：
+- 他不会主动找人聊天，现在的描述太主动了
+- 他说话语气更随意，不应该那么正式
+- 他对游戏话题其实兴趣不大，应该降低权重
+- 他从不发早安晚安，人格里写错了"></textarea>
           </div>
         </div>
         <div class="modal-footer">

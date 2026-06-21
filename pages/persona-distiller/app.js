@@ -346,9 +346,11 @@ async function deleteFromModal() {
 
 // ---- Correction Modal ----
 
+let _correcting = false;
+
 function openCorrectModal() {
     if (!_modalSlug) return;
-    document.getElementById("correct-modal-title").textContent = `修正人格 - ${esc(_modalName)}`;
+    document.getElementById("correct-modal-title").textContent = `修正人格 - ${esc(_modalName)} (${esc(_modalSlug)})`;
     document.getElementById("correct-modal-text").value = "";
     document.getElementById("correct-modal-status").textContent = "";
     document.getElementById("correct-modal").style.display = "flex";
@@ -356,20 +358,27 @@ function openCorrectModal() {
 }
 
 function closeCorrectModal() {
+    if (_correcting) return;
     document.getElementById("correct-modal").style.display = "none";
 }
 
 async function submitCorrect() {
-    if (!_modalSlug) return;
+    if (!_modalSlug || _correcting) return;
     const correctionText = document.getElementById("correct-modal-text").value.trim();
     if (!correctionText) {
         document.getElementById("correct-modal-status").textContent = "请输入修正意见";
         return;
     }
+    _correcting = true;
+    const btn = document.getElementById("correct-modal-submit");
+    const cancelBtn = document.getElementById("correct-modal-cancel");
+    btn.disabled = true;
+    btn.textContent = "修正中...";
+    cancelBtn.disabled = true;
     const status = document.getElementById("correct-modal-status");
-    status.textContent = "修正中...";
+    status.textContent = "正在调用 LLM 修正人格，请稍候...";
     try {
-        const result = await bridge.apiPost("persona/correct", {
+        await bridge.apiPost("persona/correct", {
             slug: _modalSlug,
             correction: correctionText,
         });
@@ -378,6 +387,11 @@ async function submitCorrect() {
         await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
     } catch (e) {
         status.textContent = `修正失败: ${esc(e.message)}`;
+    } finally {
+        _correcting = false;
+        btn.disabled = false;
+        btn.textContent = "提交修正";
+        cancelBtn.disabled = false;
     }
 }
 
