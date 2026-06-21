@@ -165,18 +165,30 @@ function distillableCard(u) {
 }
 
 async function doDistill(groupId, userId, userName) {
-    statusText.textContent = `正在蒸馏 ${userName}...`;
+    showDistillBanner(`<span class="banner-loading">蒸馏中...</span> 正在分析 ${esc(userName)} 的聊天记录`);
     try {
         const result = await bridge.apiPost("distill", {
             group_id: groupId,
             user_id: userId,
             user_name: userName,
         });
-        statusText.textContent = `蒸馏完成: [${result.slug}] ${result.name}`;
+        showDistillBanner(`蒸馏完成！群友 [${esc(result.slug)}] ${esc(result.name)} 已生成`, true);
         loadPersonas();
     } catch (e) {
-        statusText.textContent = `蒸馏失败: ${e.message}`;
+        showDistillBanner(`蒸馏失败：${esc(e.message)}`, false);
     }
+}
+
+function showDistillBanner(msg, success = null) {
+    const existing = document.getElementById("distill-banner");
+    if (existing) existing.remove();
+    const div = document.createElement("div");
+    div.id = "distill-banner";
+    div.className = success === true ? "banner banner-ok" : success === false ? "banner banner-err" : "banner banner-info";
+    div.innerHTML = msg;
+    const list = document.getElementById("persona-list");
+    list.insertBefore(div, list.firstChild);
+    if (success !== null) setTimeout(() => div.remove(), 5000);
 }
 
 // ---- Persona Editor ----
