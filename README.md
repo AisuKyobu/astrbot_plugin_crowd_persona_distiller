@@ -4,9 +4,9 @@
 
 
 > [!NOTE]
-> **插件名**：`astrbot_plugin_crowd_persona_distiller`
-> **版本**：v0.1.0
-> **适配平台**：aiocqhttp
+> **插件名**：`astrbot_plugin_crowd_persona_distiller`<br>
+> **版本**：v0.1.0<br>
+> **适配平台**：aiocqhttp<br>
 > **AstrBot 版本**：≥4.25
 >
 > 本插件基于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开发。
