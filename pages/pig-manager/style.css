@@ -151,7 +151,16 @@ body {
   padding: 12px 16px;
   background: var(--bg-card);
   border: 1px solid var(--border);
+  border-left: 3px solid var(--border);
   border-radius: var(--radius);
+}
+
+.card.distilled {
+  border-left-color: var(--save);
+}
+
+.card.distilled:hover {
+  border-left-color: var(--save-hover);
 }
 
 .card-info {
@@ -411,10 +420,44 @@ body {
   color: var(--primary);
   border-bottom: 1px solid var(--border);
   margin-bottom: 8px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .section-title:first-child {
   padding-top: 0;
+}
+
+.section-count {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 1px 8px;
+  border-radius: 10px;
+  color: #fff;
+}
+
+.section-title:has(.section-count) .section-count {
+  background: var(--primary);
+}
+
+.distilled-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--save);
+  font-weight: 500;
+  margin-right: 4px;
+  white-space: nowrap;
+}
+
+[data-theme="dark"] .distilled-badge {
+  color: #4ade80;
+}
+
+[data-theme="dark"] .card.distilled {
+  border-left-color: #22c55e;
 }
 
 .slug-tag {

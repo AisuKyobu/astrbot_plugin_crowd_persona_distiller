@@ -94,17 +94,17 @@ function renderPersonaList(distilled, pending, notReady) {
     const html = [];
 
     if (d.length) {
-        html.push('<div class="section-title">已蒸馏群友</div>');
+        html.push(`<div class="section-title">已蒸馏群友 <span class="section-count">${d.length}</span></div>`);
         html.push(...d.map((p) => personaCard(p, true)));
     }
 
     if (p.length) {
-        html.push('<div class="section-title">待蒸馏群友（已达到最少消息数）</div>');
+        html.push(`<div class="section-title">待蒸馏群友（已达到最少消息数） <span class="section-count">${p.length}</span></div>`);
         html.push(...p.map((u) => distillableCard(u)));
     }
 
     if (n.length) {
-        html.push('<div class="section-title">消息不足（尚无法蒸馏）</div>');
+        html.push(`<div class="section-title">消息不足（尚无法蒸馏） <span class="section-count">${n.length}</span></div>`);
         html.push(...n.map((u) => distillableCard(u)));
     }
 
@@ -126,7 +126,7 @@ function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
     return `
-    <div class="card">
+    <div class="card${isDistilled ? " distilled" : ""}">
       <div class="card-info">
         <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
         <div class="card-meta">
@@ -135,7 +135,7 @@ function personaCard(p, isDistilled) {
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
+            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
             : ""}
       </div>
     </div>`;
