@@ -65,6 +65,7 @@ async function loadPersonas() {
     const gid = filter.value;
 
     statusText.textContent = "加载中...";
+    personaList.innerHTML = '<div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div>';
     try {
         const [allUsers] = await Promise.all([
             bridge.apiGet("distillable"),
@@ -83,7 +84,7 @@ async function loadPersonas() {
         }
 
         if (!gid) {
-            personaList.innerHTML = '<div class="empty">请先选择一个群</div>';
+            personaList.innerHTML = '<div class="empty"><p>选择一个群开始管理</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">选择群后将显示该群的群友列表、蒸馏状态和消息数</p></div>';
             statusText.textContent = `共 ${groups.size} 个群`;
             return;
         }
@@ -102,8 +103,8 @@ async function loadPersonas() {
         const total = distilled.length + pending.length + notReady.length;
         statusText.textContent = `${distilled.length} 已蒸馏 / ${pending.length} 待蒸馏 / 共 ${total} 人`;
     } catch (e) {
-        statusText.textContent = `加载失败: ${e.message}`;
-        personaList.innerHTML = '<div class="empty">加载失败，请检查后端连接</div>';
+        statusText.textContent = `加载失败`;
+        personaList.innerHTML = `<div class="empty"><p>加载失败</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">${esc(e.message)}</p></div>`;
     }
 }
 
@@ -126,7 +127,7 @@ function renderPersonaList(distilled, pending, notReady) {
     }
 
     if (!html.length) {
-        personaList.innerHTML = '<div class="empty">该群暂无群友消息。让群友发言或导入聊天记录后再来查看。</div>';
+        personaList.innerHTML = '<div class="empty"><p>该群暂无群友消息</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">插件会自动记录群聊消息，或前往「数据导入」上传历史聊天记录</p></div>';
         return;
     }
 
@@ -184,12 +185,12 @@ function distillableCard(u) {
     const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
     return `
-    <div class="card">
+    <div class="card${u.reached_threshold ? "" : " not-ready"}">
       <div class="card-info">
         <div class="card-name">${uname} <span class="user-id-tag">${esc(u.user_id)}</span></div>
         <div class="card-meta">
           ${gname} · ${u.message_count} 条 · 最后发言 ${lastTs}
-          ${u.reached_threshold ? "" : `<span class="progress-bar"><span class="progress-fill" style="width:${bar}%"></span><span class="progress-text">${bar}%</span></span>`}
+          ${u.reached_threshold ? "" : `<div class="progress-bar"><div class="progress-track"><div class="progress-fill" style="width:${bar}%"></div></div><span class="progress-text">${bar}%</span></div>`}
         </div>
       </div>
       <div class="card-actions">
@@ -641,7 +642,7 @@ function renderNicknameTable(nicks) {
     document.getElementById("btn-nickname-add").onclick = () => openNicknameModal("", "");
 
     if (!entries.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼</td></tr>';
+        tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼。<br><span style="font-size:12px;color:var(--ink-3)">点击「+ 添加称呼」为群友绑定昵称，蒸馏和回复时会自动使用</span></td></tr>';
         return;
     }
     tbody.innerHTML = entries
