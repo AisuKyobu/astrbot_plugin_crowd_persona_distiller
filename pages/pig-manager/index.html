@@ -12,9 +12,8 @@
       <h1>群友蒸馏bot</h1>
       <nav class="tabs">
         <button class="tab active" data-tab="personas">群友列表</button>
-        <button class="tab" data-tab="config">群配置</button>
         <button class="tab" data-tab="nicknames">称呼管理</button>
-        <button class="tab" data-tab="editor">Persona 编辑器</button>
+        <button class="tab" data-tab="config">群配置</button>
         <button class="tab" data-tab="import">数据导入</button>
       </nav>
     </header>
@@ -23,55 +22,14 @@
       <!-- 群友列表 -->
       <section id="tab-personas" class="tab-content active">
         <div class="toolbar">
-          <button id="btn-refresh" class="btn">刷新列表</button>
           <select id="group-filter" class="select">
-            <option value="">全部群</option>
+            <option value="">-- 请选择群 --</option>
           </select>
+          <button id="btn-refresh" class="btn">刷新列表</button>
           <span id="status-text" class="status"></span>
         </div>
         <div id="persona-list" class="card-list">
-          <div class="empty">加载中...</div>
-        </div>
-      </section>
-
-      <!-- 群配置 -->
-      <section id="tab-config" class="tab-content">
-        <div class="config-section">
-          <div class="form-row">
-            <label class="label">选择群</label>
-            <select id="config-group-select" class="select">
-              <option value="">-- 选择群 --</option>
-            </select>
-          </div>
-
-          <div class="form-row">
-            <label class="label">扮演模式</label>
-            <div class="radio-group">
-              <label class="radio-label"><input type="radio" name="reply_mode" value="random" checked> 随机群友</label>
-              <label class="radio-label"><input type="radio" name="reply_mode" value="specific"> 指定群友</label>
-              <label class="radio-label"><input type="radio" name="reply_mode" value="disabled"> 关闭扮演</label>
-            </div>
-          </div>
-
-          <div class="form-row" id="specific-persona-row" style="display:none">
-            <label class="label">指定群友</label>
-            <select id="specific-persona-select" class="select">
-              <option value="">-- 选择群友 --</option>
-            </select>
-          </div>
-
-          <div class="form-row">
-            <label class="label">@机器人触发</label>
-            <label class="toggle-label">
-              <input type="checkbox" id="at-trigger-toggle" checked>
-              <span class="toggle-text">开启（群友 @Bot 时扮演回复）</span>
-            </label>
-          </div>
-
-          <div class="form-row">
-            <button id="btn-save-config" class="btn btn-save">保存配置</button>
-            <span id="config-status" class="status"></span>
-          </div>
+          <div class="empty">请先选择一个群</div>
         </div>
       </section>
 
@@ -91,17 +49,41 @@
         </table>
       </section>
 
-      <!-- Persona 编辑器 -->
-      <section id="tab-editor" class="tab-content">
-        <div class="editor-toolbar">
-          <select id="persona-select" class="select">
-            <option value="">-- 选择群友 --</option>
-          </select>
-          <button id="btn-load-persona" class="btn btn-primary">加载</button>
-          <button id="btn-save-persona" class="btn btn-save">保存</button>
-          <span id="editor-status" class="status"></span>
+      <!-- 群配置 -->
+      <section id="tab-config" class="tab-content">
+        <div class="config-section">
+          <div class="form-row">
+            <label class="label">选择群</label>
+            <select id="config-group-select" class="select">
+              <option value="">-- 选择群 --</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="label">扮演模式</label>
+            <div class="radio-group">
+              <label class="radio-label"><input type="radio" name="reply_mode" value="random" checked> 随机群友</label>
+              <label class="radio-label"><input type="radio" name="reply_mode" value="specific"> 指定群友</label>
+              <label class="radio-label"><input type="radio" name="reply_mode" value="disabled"> 关闭扮演</label>
+            </div>
+          </div>
+          <div class="form-row" id="specific-persona-row" style="display:none">
+            <label class="label">指定群友</label>
+            <select id="specific-persona-select" class="select">
+              <option value="">-- 选择群友 --</option>
+            </select>
+          </div>
+          <div class="form-row">
+            <label class="label">@机器人触发</label>
+            <label class="toggle-label">
+              <input type="checkbox" id="at-trigger-toggle" checked>
+              <span class="toggle-text">开启（群友 @Bot 时扮演回复）</span>
+            </label>
+          </div>
+          <div class="form-row">
+            <button id="btn-save-config" class="btn btn-save">保存配置</button>
+            <span id="config-status" class="status"></span>
+          </div>
         </div>
-        <textarea id="persona-editor" class="editor" placeholder="选择群友后加载 persona.md 内容..."></textarea>
       </section>
 
       <!-- 数据导入 -->
@@ -109,22 +91,17 @@
         <div class="import-section">
           <h3>上传 QQ 聊天记录 (JSON)</h3>
           <p class="hint">支持 <a href="https://github.com/shuakami/qq-chat-exporter" target="_blank">qq-chat-exporter</a> 导出的 JSON 格式</p>
-
           <div class="import-form">
             <label class="label">目标群号</label>
             <input type="text" id="import-group-id" class="input" placeholder="留空仅预览不导入" />
-
             <label class="label">目标人物昵称</label>
             <input type="text" id="import-target-name" class="input" placeholder="从聊天记录中筛选该人的消息" />
-
             <label class="label">聊天记录文件 (.json)</label>
             <input type="file" id="import-file" class="input" accept=".json" />
-
             <div class="import-actions">
               <button id="btn-import-preview" class="btn btn-primary">预览</button>
               <button id="btn-import-confirm" class="btn btn-save" disabled>确认导入</button>
             </div>
-
             <div id="import-preview" class="import-preview">
               <div class="empty">选择文件并填写信息后预览</div>
             </div>
@@ -132,6 +109,26 @@
         </div>
       </section>
     </main>
+
+    <!-- Persona 弹窗 -->
+    <div id="persona-modal" class="modal-overlay" style="display:none">
+      <div class="modal">
+        <div class="modal-header">
+          <h2 id="modal-title"></h2>
+          <button class="modal-close" id="modal-close">&times;</button>
+        </div>
+        <div class="modal-meta" id="modal-meta"></div>
+        <div class="modal-body">
+          <textarea id="modal-editor" class="editor" placeholder="加载 persona.md 内容..."></textarea>
+        </div>
+        <div class="modal-footer">
+          <button id="modal-save" class="btn btn-save">保存</button>
+          <button id="modal-redistill" class="btn btn-primary">重新蒸馏</button>
+          <button id="modal-delete" class="btn btn-danger">删除此人格</button>
+          <span id="modal-status" class="status"></span>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script type="module" src="./app.js"></script>

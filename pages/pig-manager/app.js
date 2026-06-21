@@ -4,9 +4,6 @@ const tabs = document.querySelectorAll(".tab");
 const contents = document.querySelectorAll(".tab-content");
 const statusText = document.getElementById("status-text");
 const personaList = document.getElementById("persona-list");
-const personaSelect = document.getElementById("persona-select");
-const personaEditor = document.getElementById("persona-editor");
-const editorStatus = document.getElementById("editor-status");
 
 let personas = [];
 let importToken = "";
@@ -20,14 +17,20 @@ tabs.forEach((t) =>
 );
 
 document.getElementById("btn-refresh").addEventListener("click", loadPersonas);
-document.getElementById("btn-load-persona").addEventListener("click", loadPersonaForEdit);
-document.getElementById("btn-save-persona").addEventListener("click", savePersona);
 document.getElementById("btn-import-preview").addEventListener("click", previewImport);
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
 document.getElementById("group-filter").addEventListener("change", loadPersonas);
 document.getElementById("config-group-select").addEventListener("change", onConfigGroupChange);
 document.querySelectorAll("input[name='reply_mode']").forEach((r) => r.addEventListener("change", onModeChange));
 document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+
+// Modal bindings
+const modal = document.getElementById("persona-modal");
+document.getElementById("modal-close").addEventListener("click", closeModal);
+modal.addEventListener("click", (e) => { if (e.target === modal) closeModal(); });
+document.getElementById("modal-save").addEventListener("click", savePersonaContent);
+document.getElementById("modal-redistill").addEventListener("click", redistillFromModal);
+document.getElementById("modal-delete").addEventListener("click", deleteFromModal);
 
 loadPersonas();
 
@@ -36,7 +39,6 @@ loadPersonas();
 function switchTab(name) {
     tabs.forEach((t) => t.classList.toggle("active", t.dataset.tab === name));
     contents.forEach((c) => c.classList.toggle("active", c.id === `tab-${name}`));
-    if (name === "editor") refreshPersonaSelect();
     if (name === "config") loadGroupConfigs();
     if (name === "nicknames") loadNicknames();
 }
@@ -44,38 +46,41 @@ function switchTab(name) {
 // ---- Persona List ----
 
 async function loadPersonas() {
+    const filter = document.getElementById("group-filter");
+    const gid = filter.value;
+    if (!gid) {
+        personaList.innerHTML = '<div class="empty">请先选择一个群</div>';
+        statusText.textContent = "";
+        return;
+    }
+
     statusText.textContent = "加载中...";
     try {
-        const [distilled, allUsers] = await Promise.all([
-            bridge.apiGet("personas"),
+        const [allUsers] = await Promise.all([
             bridge.apiGet("distillable"),
         ]);
-        personas = distilled;
-        const distilledSlugs = new Set(distilled.map((p) => p.slug));
 
-        const pending = allUsers
-            .filter((u) => !distilledSlugs.has(u.slug) && u.reached_threshold)
+        const gUsers = allUsers.filter(u => String(u.group_id) === gid);
+        personas = gUsers;
+
+        const distilledSlugs = new Set(personas.filter(p => p.distilled).map(p => p.slug));
+        const distilled = gUsers.filter(u => distilledSlugs.has(u.slug));
+        const pending = gUsers.filter(u => !distilledSlugs.has(u.slug) && u.reached_threshold)
             .sort((a, b) => b.message_count - a.message_count);
-
-        const notReady = allUsers
-            .filter((u) => !distilledSlugs.has(u.slug) && !u.reached_threshold)
+        const notReady = gUsers.filter(u => !distilledSlugs.has(u.slug) && !u.reached_threshold)
             .sort((a, b) => b.message_count - a.message_count);
 
         // 构建群筛选下拉
         const groups = new Map();
-        for (const u of [...distilled, ...pending, ...notReady]) {
-            const gid = String(u.group_id);
-            if (!groups.has(gid)) {
-                groups.set(gid, u.group_name || gid);
-            }
+        for (const u of allUsers) {
+            const g = String(u.group_id);
+            if (!groups.has(g)) groups.set(g, u.group_name || g);
         }
-        const filter = document.getElementById("group-filter");
         const currentVal = filter.value;
-        filter.innerHTML = '<option value="">全部群</option>';
-        for (const [gid, gname] of groups) {
-            filter.innerHTML += `<option value="${esc(gid)}">${esc(gname || gid)}</option>`;
+        filter.innerHTML = '<option value="">-- 请选择群 --</option>';
+        for (const [gi, gn] of groups) {
+            filter.innerHTML += `<option value="${esc(gi)}" ${gi === currentVal ? "selected" : ""}>${esc(gn || gi)} (${esc(gi)})</option>`;
         }
-        filter.value = currentVal;
 
         renderPersonaList(distilled, pending, notReady);
         const total = distilled.length + pending.length + notReady.length;
@@ -87,30 +92,25 @@ async function loadPersonas() {
 }
 
 function renderPersonaList(distilled, pending, notReady) {
-    const filter = document.getElementById("group-filter").value;
-    const f = (u) => !filter || String(u.group_id) === filter;
-    const d = distilled.filter(f);
-    const p = pending.filter(f);
-    const n = notReady.filter(f);
     const html = [];
 
-    if (d.length) {
-        html.push(`<div class="section-title">已蒸馏群友 <span class="section-count">${d.length}</span></div>`);
-        html.push(...d.map((p) => personaCard(p, true)));
+    if (distilled.length) {
+        html.push(`<div class="section-title">已蒸馏群友 <span class="section-count">${distilled.length}</span></div>`);
+        html.push(...distilled.map((p) => personaCard(p, true)));
     }
 
-    if (p.length) {
-        html.push(`<div class="section-title">待蒸馏群友（已达到最少消息数） <span class="section-count">${p.length}</span></div>`);
-        html.push(...p.map((u) => distillableCard(u)));
+    if (pending.length) {
+        html.push(`<div class="section-title">待蒸馏群友（已达到最少消息数） <span class="section-count">${pending.length}</span></div>`);
+        html.push(...pending.map((u) => distillableCard(u)));
     }
 
-    if (n.length) {
-        html.push(`<div class="section-title">消息不足（尚无法蒸馏） <span class="section-count">${n.length}</span></div>`);
-        html.push(...n.map((u) => distillableCard(u)));
+    if (notReady.length) {
+        html.push(`<div class="section-title">消息不足（尚无法蒸馏） <span class="section-count">${notReady.length}</span></div>`);
+        html.push(...notReady.map((u) => distillableCard(u)));
     }
 
     if (!html.length) {
-        personaList.innerHTML = '<div class="empty">还没有任何群聊消息。在群聊中发言或上传聊天记录导入数据。</div>';
+        personaList.innerHTML = '<div class="empty">该群暂无群友消息。让群友发言或导入聊天记录后再来查看。</div>';
         return;
     }
 
@@ -121,13 +121,24 @@ function renderPersonaList(distilled, pending, notReady) {
             doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name, btn)
         );
     });
+
+    document.querySelectorAll(".card-persona").forEach((card) => {
+        card.addEventListener("click", (e) => {
+            if (e.target.closest("button")) return;
+            const slug = card.dataset.slug;
+            const gi = card.dataset.group;
+            const ui = card.dataset.user;
+            const nm = card.dataset.name;
+            openModal(slug, gi, ui, nm);
+        });
+    });
 }
 
 function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
     return `
-    <div class="card${isDistilled ? " distilled" : ""}">
+    <div class="card card-persona ${isDistilled ? "distilled" : ""}" data-slug="${esc(p.slug)}" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">
       <div class="card-info">
         <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
         <div class="card-meta">
@@ -136,8 +147,8 @@ function personaCard(p, isDistilled) {
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">重新蒸馏</button>`
-            : ""}
+            ? `<span class="distilled-badge">&#10003; 已蒸馏</span>`
+            : `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">蒸馏</button>`}
       </div>
     </div>`;
 }
@@ -202,47 +213,88 @@ function showDistillBanner(msg, success = null) {
     if (success !== null && success !== false) setTimeout(() => div.remove(), 5000);
 }
 
-// ---- Persona Editor ----
+// ---- Persona Modal ----
 
-function refreshPersonaSelect() {
-    personaSelect.innerHTML = '<option value="">-- 选择群友 --</option>';
-    personas.forEach((p) => {
-        const opt = document.createElement("option");
-        opt.value = p.slug;
-        opt.textContent = `[${p.slug}] ${p.name}`;
-        personaSelect.appendChild(opt);
-    });
-}
+let _modalSlug = "";
+let _modalGroupId = "";
+let _modalUserId = "";
+let _modalName = "";
 
-async function loadPersonaForEdit() {
-    const slug = personaSelect.value;
-    if (!slug) return;
+async function openModal(slug, groupId, userId, name) {
+    _modalSlug = slug;
+    _modalGroupId = groupId;
+    _modalUserId = userId;
+    _modalName = name;
 
-    editorStatus.textContent = "加载中...";
+    document.getElementById("modal-title").textContent = `${esc(name)} (${esc(slug)})`;
+    document.getElementById("modal-meta").textContent = "加载中...";
+    document.getElementById("modal-editor").value = "";
+    document.getElementById("modal").style.display = "flex";
+    document.getElementById("modal-status").textContent = "";
+
     try {
         const data = await bridge.apiGet(`persona/${slug}`);
-        personaEditor.value = data.content || "";
-        editorStatus.textContent = `已加载 [${slug}]`;
+        document.getElementById("modal-editor").value = data.content || "";
+        const meta = data.meta || {};
+        const mc = meta.message_count || 0;
+        const ts = (meta.last_distill_at || "").slice(0, 10);
+        document.getElementById("modal-meta").textContent = `消息数: ${mc} · 最后蒸馏: ${ts || "—"}`;
     } catch (e) {
-        editorStatus.textContent = `加载失败: ${e.message}`;
+        document.getElementById("modal-meta").textContent = `加载失败: ${e.message}`;
     }
 }
 
-async function savePersona() {
-    const slug = personaSelect.value;
-    if (!slug) {
-        editorStatus.textContent = "请先选择群友";
-        return;
-    }
+function closeModal() {
+    document.getElementById("modal").style.display = "none";
+}
 
-    editorStatus.textContent = "保存中...";
+async function savePersonaContent() {
+    if (!_modalSlug) return;
+    const status = document.getElementById("modal-status");
+    status.textContent = "保存中...";
     try {
-        await bridge.apiPost(`persona/${slug}/save`, {
-            content: personaEditor.value,
+        await bridge.apiPost(`persona/${_modalSlug}/save`, {
+            content: document.getElementById("modal-editor").value,
         });
-        editorStatus.textContent = "已保存";
+        status.textContent = "已保存";
     } catch (e) {
-        editorStatus.textContent = `保存失败: ${e.message}`;
+        status.textContent = `保存失败: ${e.message}`;
+    }
+}
+
+async function redistillFromModal() {
+    if (!_modalUserId || !_modalGroupId) return;
+    const status = document.getElementById("modal-status");
+    status.textContent = "蒸馏中...";
+    try {
+        const result = await bridge.apiPost("distill", {
+            group_id: _modalGroupId,
+            user_id: _modalUserId,
+            user_name: _modalName,
+        });
+        status.textContent = `蒸馏完成: ${esc(result.name)}`;
+        closeModal();
+        loadPersonas();
+    } catch (e) {
+        status.textContent = `蒸馏失败: ${esc(e.message)}`;
+    }
+}
+
+async function deleteFromModal() {
+    if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
+    if (!confirm(`确定删除 ${esc(_modalName)} 的人格和所有聊天记录？此操作不可恢复。`)) return;
+    const status = document.getElementById("modal-status");
+    status.textContent = "删除中...";
+    try {
+        await bridge.apiPost("persona/delete", {
+            slug: _modalSlug,
+            group_id: _modalGroupId,
+            user_id: _modalUserId,
+        });
+        closeModal();
+        loadPersonas();
+    } catch (e) {
+        status.textContent = `删除失败: ${esc(e.message)}`;
     }
 }
 

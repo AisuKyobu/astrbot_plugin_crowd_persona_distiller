@@ -222,6 +222,12 @@ class GroupFriendPlugin(Star):
                 "保存 Persona 内容",
             )
             self.context.register_web_api(
+                f"{route_prefix}/persona/delete",
+                self._api_delete_persona,
+                ["POST"],
+                "删除 Persona 及聊天记录",
+            )
+            self.context.register_web_api(
                 f"{route_prefix}/import/preview",
                 self._api_import_preview,
                 ["POST"],
@@ -317,6 +323,19 @@ class GroupFriendPlugin(Star):
             return _err("missing content", status_code=400)
         self.persona_mgr.save_persona(slug, content)
         return _json({"saved": True})
+
+    async def _api_delete_persona(self):
+        payload = (await request.get_json()) or {}
+        slug = payload.get("slug", "")
+        group_id = payload.get("group_id", "")
+        user_id = payload.get("user_id", "")
+        if not slug or not group_id or not user_id:
+            return _err("missing slug/group_id/user_id", status_code=400)
+        self.persona_mgr.delete_persona(slug)
+        await self.storage.delete_persona_index(slug)
+        await self.storage.delete_user_messages(group_id, user_id)
+        logger.info(f"[群友蒸馏] 已删除 persona: {slug}")
+        return _json({"deleted": slug})
 
     async def _api_import_chunk(self):
         payload = (await request.get_json()) or {}
