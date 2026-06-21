@@ -63,6 +63,7 @@ class GroupFriendPlugin(Star):
 
     @filter.event_message_type(filter.EventMessageType.GROUP_MESSAGE)
     async def on_group_message(self, event: AstrMessageEvent):
+        '''监听所有群消息：自动记录群聊内容、概率触发扮演回复'''
         group_id = event.get_group_id()
         if not group_id:
             return
@@ -144,10 +145,12 @@ class GroupFriendPlugin(Star):
 
     @filter.command_group("nickname", priority=1)
     async def nickname_cmd_group(self, event: AstrMessageEvent):
+        '''管理群友称呼映射（set / list / remove）'''
         pass
 
     @nickname_cmd_group.command("set")
     async def nickname_set(self, event: AstrMessageEvent, user_id: str, nickname: str):
+        '''设置群友称呼：/nickname set <QQ号|@某人> <称呼,别名...>'''
         uid = user_id.strip()
         name = nickname.strip() if nickname else ""
 
@@ -179,6 +182,7 @@ class GroupFriendPlugin(Star):
 
     @nickname_cmd_group.command("list")
     async def nickname_list(self, event: AstrMessageEvent):
+        '''查看所有已设置的称呼映射'''
         mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str) and "," in m]
         if not mappings:
             yield event.plain_result("还没有设置任何称呼")
@@ -191,6 +195,7 @@ class GroupFriendPlugin(Star):
 
     @nickname_cmd_group.command("remove")
     async def nickname_remove(self, event: AstrMessageEvent, user_id: str):
+        '''删除指定群友的称呼映射：/nickname remove <QQ号>'''
         uid = user_id.strip()
         mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]
         new_mappings = [m for m in mappings if not m.startswith(uid + ",")]
