@@ -94,7 +94,7 @@ class ReplyEngine:
                 continue
 
             logger.info(f"[群友蒸馏] 群 {gid} 冷群触发，进行扮演回复")
-            await self.do_reply(gid, event=None)
+            await self.do_reply(gid, event=None, is_cold=True)
 
     def _in_sleep_time(self) -> bool:
         sleep_start = self.config.get("cold_group_sleep_start", 2)
@@ -107,7 +107,7 @@ class ReplyEngine:
 
     # ---------- 回复生成 ----------
 
-    async def generate_reply(self, group_id: str) -> tuple[str, str] | None:
+    async def generate_reply(self, group_id: str, is_cold: bool = False) -> tuple[str, str] | None:
         # 读群配置
         cfg = await self.storage.get_group_config(group_id)
         if cfg.get("reply_mode") == "disabled":
@@ -151,6 +151,12 @@ class ReplyEngine:
 
         extra_prompt = self.config.get("custom_reply_system_prompt", "")
         system_prompt = persona_content
+        if is_cold:
+            cold_hours = self.config.get("cold_group_hours", 4)
+            system_prompt = (
+                f"{cold_hours}小时没有人说话了，请你结合性格和群消息自己开启一个话题或是回复一段话。"
+                f"\n\n{persona_content}"
+            )
         if extra_prompt:
             system_prompt += f"\n\n## 额外指令\n{extra_prompt}"
 
@@ -168,7 +174,7 @@ class ReplyEngine:
             logger.error(f"[群友蒸馏] LLM 回复生成失败: {e}")
             return None
 
-    async def do_reply(self, group_id: str, event: AstrMessageEvent | None):
+    async def do_reply(self, group_id: str, event: AstrMessageEvent | None, is_cold: bool = False):
         personas = await self.storage.get_personas_by_group(group_id)
         if not personas:
             if event:
@@ -182,7 +188,7 @@ class ReplyEngine:
                     pass
             return
 
-        result = await self.generate_reply(group_id)
+        result = await self.generate_reply(group_id, is_cold=is_cold)
         if not result:
             return
 

@@ -64,7 +64,7 @@
     "description": "扮演回复时附带的最近上下文消息数"
   },
   "custom_reply_system_prompt": {
-    "type": "string",
+    "type": "text",
     "default": "",
     "description": "追加到每次扮演回复的额外 system prompt（全局生效）"
   }
