@@ -70,6 +70,7 @@ class GroupFriendStorage:
             ("reply_mode", "'random'"),
             ("specific_slug", "''"),
             ("at_trigger", "1"),
+            ("enable_name_change", "1"),
         ):
             try:
                 await self._conn.execute(f"ALTER TABLE group_state ADD COLUMN {col} TEXT DEFAULT {default}")
@@ -238,6 +239,7 @@ class GroupFriendStorage:
                 "reply_mode": state.get("reply_mode", "random"),
                 "specific_slug": state.get("specific_slug", ""),
                 "at_trigger": bool(state.get("at_trigger", 1)),
+                "enable_name_change": bool(int(state.get("enable_name_change", 1) or 1)),
             }
         return {
             "group_id": group_id,
@@ -245,6 +247,7 @@ class GroupFriendStorage:
             "reply_mode": "random",
             "specific_slug": "",
             "at_trigger": True,
+            "enable_name_change": True,
         }
 
     async def list_all_groups(self) -> list[dict]:

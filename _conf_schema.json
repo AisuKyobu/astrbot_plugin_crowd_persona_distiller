@@ -45,16 +45,6 @@
     "default": 8,
     "description": "冷群休眠时段终点（时）"
   },
-  "enable_name_change": {
-    "type": "bool",
-    "default": true,
-    "description": "扮演时将群名改为该群友昵称"
-  },
-  "name_change_cooldown_hours": {
-    "type": "int",
-    "default": 1,
-    "description": "改群名冷却（小时）"
-  },
   "name_change_blacklist": {
     "type": "list",
     "description": "改群名黑名单（slug 列表）"

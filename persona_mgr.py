@@ -164,6 +164,7 @@ class PersonaManager:
             "user_id": user_id,
             "created_at": now,
             "updated_at": now,
+            "last_distill_at": now,
             "version": "v1",
             "message_count": count,
             "profile": manual_tags.get("profile", {}) if manual_tags else {},

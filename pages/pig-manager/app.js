@@ -474,6 +474,7 @@ async function onConfigGroupChange() {
         const cfg = await bridge.apiGet(`group_config/${groupId}`);
         document.querySelector(`input[name="reply_mode"][value="${cfg.reply_mode || 'random'}"]`).checked = true;
         document.getElementById("at-trigger-toggle").checked = cfg.at_trigger !== false;
+        document.getElementById("name-change-toggle").checked = cfg.enable_name_change !== false;
 
         const personaSel = document.getElementById("specific-persona-select");
         personaSel.innerHTML = '<option value="">-- 选择群友 --</option>';
@@ -502,6 +503,7 @@ async function saveConfig() {
     const replyMode = document.querySelector("input[name='reply_mode']:checked")?.value || "random";
     const specificSlug = replyMode === "specific" ? document.getElementById("specific-persona-select").value : "";
     const atTrigger = document.getElementById("at-trigger-toggle").checked;
+    const nameChange = document.getElementById("name-change-toggle").checked;
 
     document.getElementById("config-status").textContent = "保存中...";
     try {
@@ -509,6 +511,7 @@ async function saveConfig() {
             reply_mode: replyMode,
             specific_slug: specificSlug,
             at_trigger: atTrigger,
+            enable_name_change: nameChange,
         });
         document.getElementById("config-status").textContent = "已保存";
     } catch (e) {
@@ -535,6 +538,9 @@ async function loadNicknames() {
 function renderNicknameTable(nicks) {
     const tbody = document.querySelector("#nickname-table tbody");
     const entries = Object.entries(nicks);
+
+    document.getElementById("btn-nickname-add").onclick = () => openEditRow("", "");
+
     if (!entries.length) {
         tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼</td></tr>';
         return;
@@ -560,8 +566,6 @@ function renderNicknameTable(nicks) {
     tbody.querySelectorAll("[data-action='delete']").forEach((btn) => {
         btn.addEventListener("click", () => deleteNickname(btn.dataset.uid, btn.dataset.name));
     });
-
-    document.getElementById("btn-nickname-add").onclick = () => openEditRow("", "");
 }
 
 function openEditRow(uid, name) {

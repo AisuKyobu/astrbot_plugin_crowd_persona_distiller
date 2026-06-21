@@ -601,7 +601,7 @@ class GroupFriendPlugin(Star):
 
     async def _api_update_group_config(self, group_id: str):
         payload = (await request.get_json()) or {}
-        allowed = {"reply_mode", "specific_slug", "at_trigger"}
+        allowed = {"reply_mode", "specific_slug", "at_trigger", "enable_name_change"}
         updates = {k: v for k, v in payload.items() if k in allowed}
         if not updates:
             return _err("no valid config keys", status_code=400)
