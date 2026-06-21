@@ -445,7 +445,22 @@ async function previewImport() {
         // 自动设置聊天类型
         document.querySelector(`input[name="chat_type"][value="${detectedChatType}"]`).checked = true;
 
-        document.getElementById("import-group-id").value = gid;
+        // 自动填充并锁定 group_id
+        const groupIdInput = document.getElementById("import-group-id");
+        groupIdInput.value = gid;
+        groupIdInput.readOnly = true;
+
+        // 私聊：显示对方QQ行并自动填充
+        const privateRow = document.getElementById("import-private-row");
+        const targetNameInput = document.getElementById("import-target-name");
+        if (detectedChatType === "private") {
+            privateRow.style.display = "";
+            const counterpartyQQ = users.length > 0 ? users[0].user_id : gid;
+            targetNameInput.value = counterpartyQQ || "";
+        } else {
+            privateRow.style.display = "none";
+            targetNameInput.value = "";
+        }
 
         const typeLabel = detectedChatType === "private" ? "私聊" : "群聊";
         let html = `<p><strong>${typeLabel}</strong> · ${gname ? esc(gname) + " · " : ""}解析到 <strong>${total}</strong> 条消息，<strong>${users.length}</strong> 个用户</p>`;
@@ -478,9 +493,14 @@ async function previewImport() {
 }
 
 async function confirmImport() {
-    const groupId = document.getElementById("import-group-id").value.trim();
+    const chatType = document.querySelector("input[name='chat_type']:checked")?.value || "group";
+    let groupId = document.getElementById("import-group-id").value.trim();
+    if (chatType === "private") {
+        const privQQ = document.getElementById("import-target-name").value.trim();
+        groupId = privQQ || groupId;
+    }
     if (!groupId) {
-        showImportPreview('<div class="empty">请填写群号</div>');
+        showImportPreview('<div class="empty">请填写群号或对方QQ</div>');
         return;
     }
     if (!importToken) {
@@ -494,8 +514,6 @@ async function confirmImport() {
         showImportPreview('<div class="empty">请至少选择一个用户</div>');
         return;
     }
-
-    const chatType = document.querySelector("input[name='chat_type']:checked")?.value || "group";
 
     showImportPreview('<div class="empty">导入中...</div>');
 
