@@ -24,7 +24,7 @@ def _err(msg, status_code=400):
 @register(
     "astrbot_plugin_crowd_persona_distiller",
     "AisuKyobu",
-    "群友蒸馏bot：记录群聊 → LLM蒸馏人格 → 扮演群友回复",
+    "群友蒸馏师：记录群聊 → LLM蒸馏人格 → 扮演群友回复",
     "0.1.0",
 )
 class GroupFriendPlugin(Star):

@@ -1,6 +1,6 @@
 # astrbot_plugin_crowd_persona_distiller
 
-群友蒸馏bot — 自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
+群友蒸馏师 — 自动记录 QQ 群聊消息，用 LLM 蒸馏群友人格，随机扮演群友语气回复。
 
 Inspired by [pig-skill](https://github.com/Neko-Suwako/pig-skill).
 

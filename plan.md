@@ -1,4 +1,4 @@
-# Implementation Plan: 群友蒸馏bot
+# Implementation Plan: 群友蒸馏师
 
 ## Overview
 

@@ -1,4 +1,4 @@
-# Spec: 群友蒸馏bot (astrbot_plugin_crowd_persona_distiller)
+# Spec: 群友蒸馏师 (astrbot_plugin_crowd_persona_distiller)
 
 ## Objective
 
