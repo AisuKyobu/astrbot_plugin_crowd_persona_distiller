@@ -75,11 +75,30 @@ class GroupFriendPlugin(Star):
             return
 
         if event.is_at_or_wake_command:
-            # @Bot 触发：不记录消息，直接扮演回复
+            # 只有真正 @了 Bot 的消息才入库+回复，纯命令（如 /nickname）跳过
+            self_id = event.get_self_id()
+            is_at_bot = any(
+                hasattr(c, "qq") and str(getattr(c, "qq", "")) == self_id
+                for c in event.get_messages()
+            )
+            if not is_at_bot:
+                return
+
             try:
-                cfg = await self.storage.get_group_config(str(group_id))
+                group_id_str = str(group_id)
+                user_id = str(event.get_sender_id())
+                user_name = event.get_sender_name() or user_id
+                content = event.message_str.strip() or ""
+
+                if content:
+                    await self.storage.record_message(
+                        group_id_str, user_id, user_name, content,
+                        ts=event.message_obj.timestamp if event.message_obj else None,
+                    )
+
+                cfg = await self.storage.get_group_config(group_id_str)
                 if cfg.get("at_trigger", True):
-                    await self.reply_engine.do_reply(str(group_id), event)
+                    await self.reply_engine.do_reply(group_id_str, event)
             except Exception as e:
                 logger.error(f"[群友蒸馏] @Bot触发失败: {e}")
             return
@@ -123,7 +142,7 @@ class GroupFriendPlugin(Star):
 
     # ---------- 昵称管理 ----------
 
-    @filter.command_group("nickname")
+    @filter.command_group("nickname", priority=1)
     async def nickname_cmd_group(self, event: AstrMessageEvent):
         pass
 
