@@ -162,7 +162,7 @@ class GroupFriendPlugin(Star):
                 break
 
         if not uid or not name:
-            yield event.plain_result("用法: /nickname set <QQ号|@某人> <称呼>\n    例: /nickname set @基长 基长")
+            yield event.plain_result("用法: /nickname set <QQ号|@某人> <称呼,别名...>\n    例: /nickname set @基长 基长,基宝,长哥")
             return
 
         mappings = [m for m in (self.config.get("nickname_mappings") or []) if isinstance(m, str)]

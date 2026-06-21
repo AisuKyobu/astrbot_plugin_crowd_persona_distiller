@@ -568,7 +568,7 @@ function openEditRow(uid, name) {
     const tr = document.createElement("tr");
     tr.innerHTML = `
       <td><input type="text" class="input nickname-input-uid" placeholder="QQ号" value="${esc(uid)}" ${isNew ? "" : "disabled"} /></td>
-      <td><input type="text" class="input nickname-input-name" placeholder="称呼" value="${esc(name)}" /></td>
+      <td><input type="text" class="input nickname-input-name" placeholder="主称呼,别名1,别名2" value="${esc(name)}" /></td>
       <td>
         <div class="nickname-actions">
           <button class="btn btn-save nickname-btn-save">保存</button>
