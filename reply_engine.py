@@ -328,7 +328,7 @@ class ReplyEngine:
             uid = m.get("user_id", "")
             name = self._resolve_name(uid, m.get("user_name", ""))
             content = m["content"]
-            lines.append(f"{name}: {content}")
+            lines.append(f"{name}（QQ: {uid}）: {content}")
         return "\n".join(lines)
 
     def _resolve_name(self, user_id: str, fallback: str) -> str:
@@ -340,21 +340,64 @@ class ReplyEngine:
         return fallback
 
     def _build_reference(self, messages: list[dict]) -> str:
+        import re
+
         uids = set()
+        alias_to_qq = self._build_alias_index()
+
         for m in messages:
             uid = m.get("user_id", "")
             if uid:
                 uids.add(uid)
+
+            content = m.get("content", "")
+            for match in re.finditer(r'@QQ(\d+)', content):
+                uids.add(match.group(1))
+            for match in re.finditer(r'@(\S+?)\((\d+)\)', content):
+                uids.add(match.group(2))
+            for alias, qq in alias_to_qq.items():
+                if alias in content:
+                    uids.add(qq)
+
+        fallback = self._build_fallback(messages)
 
         refs = []
         for uid in sorted(uids):
             aliases = self._get_aliases(uid)
             if aliases:
                 refs.append(f"- {uid}: {', '.join(aliases)}")
+            elif uid in fallback:
+                refs.append(f"- {uid}: {fallback[uid]}（群昵称）")
 
         if not refs:
             return ""
-        return "## 群友参考\n" + "\n".join(refs) + "\n\n"
+        return (
+            "## 群友称呼参考\n"
+            "以下为该群友在群中的昵称、外号等称呼：\n\n"
+            + "\n".join(refs) + "\n\n"
+        )
+
+    def _build_alias_index(self) -> dict[str, str]:
+        index: dict[str, str] = {}
+        for item in self.config.get("nickname_mappings", []):
+            if isinstance(item, str):
+                uid, sep, rest = item.partition(",")
+                uid = uid.strip()
+                if uid and rest.strip():
+                    for a in rest.split(","):
+                        a = a.strip()
+                        if a and a not in index:
+                            index[a] = uid
+        return index
+
+    def _build_fallback(self, messages: list[dict]) -> dict[str, str]:
+        fb: dict[str, str] = {}
+        for m in messages:
+            uid = m.get("user_id", "")
+            uname = m.get("user_name", "")
+            if uid and uname and uid not in fb:
+                fb[uid] = uname
+        return fb
 
     def _get_aliases(self, user_id: str) -> list[str]:
         for item in self.config.get("nickname_mappings", []):

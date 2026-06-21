@@ -65,14 +65,8 @@ def _get_content_text(msg: dict) -> str:
         parts = []
         for el in elements:
             if isinstance(el, dict):
-                el_type = el.get("type", "")
-                data = el.get("data") or {}
-                if el_type == "at":
-                    uid = data.get("uid", "")
-                    name = data.get("name", "")
-                    if uid:
-                        parts.append(f"@QQ{uid}({name})" if name else f"@QQ{uid}")
-                elif isinstance(data, dict):
+                data = el.get("data")
+                if isinstance(data, dict):
                     t = data.get("text", "")
                     if t:
                         parts.append(t)
