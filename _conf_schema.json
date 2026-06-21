@@ -63,5 +63,11 @@
     "type": "text",
     "default": "",
     "description": "追加到每次扮演回复的额外 system prompt（全局生效）"
+  },
+  "nickname_mappings": {
+    "type": "list",
+    "default": [],
+    "description": "用户称呼映射表（通过 WebUI 称呼管理 Tab 编辑）",
+    "invisible": true
   }
 }
