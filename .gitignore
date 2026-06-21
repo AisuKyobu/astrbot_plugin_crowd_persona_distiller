@@ -9,3 +9,12 @@ AGENTS.md
 opencode.json
 *.db
 data/
+
+# Dev docs
+plan.md
+spec.md
+
+# IDE
+.vscode/
+.idea/
+
