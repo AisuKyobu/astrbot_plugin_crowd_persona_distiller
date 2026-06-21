@@ -167,6 +167,19 @@ class ReplyEngine:
             return None
 
     async def do_reply(self, group_id: str, event: AstrMessageEvent | None):
+        personas = await self.storage.get_personas_by_group(group_id)
+        if not personas:
+            if event:
+                try:
+                    await event.send(
+                        __import__("astrbot.api.event", fromlist=["MessageChain"])
+                        .MessageChain()
+                        .message("当前还没有群友的人格信息哦，请先在web面板进行蒸馏~")
+                    )
+                except Exception:
+                    pass
+            return
+
         result = await self.generate_reply(group_id)
         if not result:
             return
