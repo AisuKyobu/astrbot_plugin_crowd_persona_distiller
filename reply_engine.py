@@ -322,30 +322,44 @@ class ReplyEngine:
     def _format_context(self, messages: list[dict]) -> str:
         if not messages:
             return "（暂无聊天记录）"
-        lines = ["以下是最近的群聊天记录，请用你的语气自然地回复：", ""]
+        ref = self._build_reference(messages)
+        lines = [ref, "以下是最近的群聊天记录，请用你的语气自然地回复：", ""]
         for m in messages:
             uid = m.get("user_id", "")
             name = self._resolve_name(uid, m.get("user_name", ""))
-            content = self._strip_at_qq(m["content"])
+            content = m["content"]
             lines.append(f"{name}: {content}")
         return "\n".join(lines)
 
     def _resolve_name(self, user_id: str, fallback: str) -> str:
         for item in self.config.get("nickname_mappings", []):
             if isinstance(item, str):
-                uid, sep, name = item.partition(",")
-                if uid.strip() == user_id and name.strip():
-                    return name.strip()
+                uid, sep, rest = item.partition(",")
+                if uid.strip() == user_id and rest.strip():
+                    return rest.split(",")[0].strip()
         return fallback
 
-    def _strip_at_qq(self, text: str) -> str:
-        import re
+    def _build_reference(self, messages: list[dict]) -> str:
+        uids = set()
+        for m in messages:
+            uid = m.get("user_id", "")
+            if uid:
+                uids.add(uid)
 
-        def _resolve_at(m: re.Match) -> str:
-            qq = m.group(1)
-            fallback = m.group(2) or qq
-            return self._resolve_name(qq, fallback)
+        refs = []
+        for uid in sorted(uids):
+            aliases = self._get_aliases(uid)
+            if aliases:
+                refs.append(f"- {uid}: {', '.join(aliases)}")
 
-        text = re.sub(r'@QQ(\d+)\(([^)]*)\)', _resolve_at, text)
-        text = re.sub(r'@(\S+?)\((\d+)\)', _resolve_at, text)
-        return text
+        if not refs:
+            return ""
+        return "## 群友参考\n" + "\n".join(refs) + "\n\n"
+
+    def _get_aliases(self, user_id: str) -> list[str]:
+        for item in self.config.get("nickname_mappings", []):
+            if isinstance(item, str):
+                uid, sep, rest = item.partition(",")
+                if uid.strip() == user_id and rest.strip():
+                    return [a.strip() for a in rest.split(",") if a.strip()]
+        return []

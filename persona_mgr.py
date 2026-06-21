@@ -292,9 +292,9 @@ class PersonaManager:
     def _resolve_name(self, user_id: str, fallback: str) -> str:
         for item in self.config.get("nickname_mappings", []):
             if isinstance(item, str):
-                uid, sep, name = item.partition(",")
-                if uid.strip() == user_id and name.strip():
-                    return name.strip()
+                uid, sep, rest = item.partition(",")
+                if uid.strip() == user_id and rest.strip():
+                    return rest.split(",")[0].strip()
         return fallback
 
     async def get_random_persona_for_group(self, group_id: str) -> Optional[dict]:
