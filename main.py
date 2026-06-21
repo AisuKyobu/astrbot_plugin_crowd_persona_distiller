@@ -104,7 +104,10 @@ class GroupFriendPlugin(Star):
             user_id = str(event.get_sender_id())
             user_name = event.get_sender_name() or user_id
 
-            await self.storage.record_message(group_id_str, user_id, user_name, content)
+            await self.storage.record_message(
+                group_id_str, user_id, user_name, content,
+                ts=event.message_obj.timestamp if event.message_obj else None,
+            )
 
             import time
 

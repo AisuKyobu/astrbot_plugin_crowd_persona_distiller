@@ -76,6 +76,15 @@ class GroupFriendStorage:
                 await self._conn.commit()
             except Exception:
                 pass
+        # 迁移: 建去重索引
+        try:
+            await self._conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS idx_messages_dedup "
+                "ON messages(group_id, user_id, timestamp, content)"
+            )
+            await self._conn.commit()
+        except Exception:
+            logger.warning("[群友蒸馏] 去重索引创建失败，如 DB 中存在重复数据请手动清理")
         cursor = await self._conn.execute("SELECT COUNT(*) as cnt FROM messages")
         row = await cursor.fetchone()
         cnt = row["cnt"] if row else 0
@@ -88,11 +97,18 @@ class GroupFriendStorage:
     # ---------- 消息记录 ----------
 
     async def record_message(
-        self, group_id: str, user_id: str, user_name: str, content: str
+        self,
+        group_id: str,
+        user_id: str,
+        user_name: str,
+        content: str,
+        ts: Optional[int] = None,
     ):
-        ts = time.time()
+        if ts is None:
+            ts = int(time.time())
         await self._conn.execute(
-            "INSERT INTO messages (group_id, user_id, user_name, content, timestamp) VALUES (?, ?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO messages (group_id, user_id, user_name, content, timestamp) "
+            "VALUES (?, ?, ?, ?, ?)",
             (group_id, user_id, user_name, content, ts),
         )
         await self._conn.commit()

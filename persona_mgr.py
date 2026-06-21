@@ -216,7 +216,12 @@ class PersonaManager:
             content = msg.get("content", "").strip()
             if not content:
                 continue
-            await self.storage.record_message(group_id, user_id, user_name, content)
+            ts = msg.get("timestamp", None)
+            if isinstance(ts, (int, float)):
+                ts = int(ts)
+            else:
+                ts = None
+            await self.storage.record_message(group_id, user_id, user_name, content, ts)
             count += 1
         logger.info(f"[群友蒸馏] 导入 {user_name} 的 {count} 条消息")
         return count

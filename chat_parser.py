@@ -19,7 +19,7 @@ JSON 结构:
 }
 """
 
-from datetime import datetime
+import time as _time
 
 
 def _get_messages(data) -> list:
@@ -92,17 +92,20 @@ def _is_system_or_media(msg: dict, text: str) -> bool:
     return False
 
 
-def _format_timestamp(ts) -> str:
-    if isinstance(ts, str):
-        return ts
+def _format_timestamp(ts) -> int:
     if isinstance(ts, (int, float)):
         if ts > 1e12:
             ts = ts / 1000
+        return int(ts)
+    if isinstance(ts, str):
         try:
-            return datetime.fromtimestamp(ts).isoformat()
-        except (OSError, ValueError):
-            return str(ts)
-    return ""
+            f = float(ts)
+            if f > 1e12:
+                f /= 1000
+            return int(f)
+        except (ValueError, OSError):
+            return int(_time.time())
+    return int(_time.time())
 
 
 def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
@@ -114,7 +117,7 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         target_name: 目标昵称或 QQ 号，空则提取所有人
 
     Returns:
-        [{"sender": str, "content": str, "timestamp": str}, ...]
+        [{"sender": str, "content": str, "timestamp": int}, ...]
     """
     raw = _get_messages(data)
     messages = []
