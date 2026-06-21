@@ -8,7 +8,7 @@ Inspired by [pig-skill](https://github.com/Neko-Suwako/pig-skill).
 > **插件名**：`astrbot_plugin_crowd_persona_distiller`
 > **版本**：v0.1.0
 > **适配平台**：aiocqhttp
-> **AstrBot 版本**：≥4.x
+> **AstrBot 版本**：≥4.15
 >
 > 本插件基于 [AstrBot](https://github.com/AstrBotDevs/AstrBot) 开发。
 
