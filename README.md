@@ -55,9 +55,6 @@
 # 克隆到 AstrBot 插件目录
 cd AstrBot/data/plugins
 git clone https://github.com/AisuKyobu/astrbot_plugin_crowd_persona_distiller
-
-# 安装依赖
-pip install -r astrbot_plugin_crowd_persona_distiller/requirements.txt
 ```
 
 在 AstrBot WebUI 中启用插件，配置蒸馏和回复用的 LLM 提供商后即可使用。
