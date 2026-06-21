@@ -326,14 +326,26 @@ class ReplyEngine:
         for m in messages:
             uid = m.get("user_id", "")
             name = self._resolve_name(uid, m.get("user_name", ""))
-            content = m["content"]
+            content = self._strip_at_qq(m["content"])
             lines.append(f"{name}: {content}")
         return "\n".join(lines)
 
     def _resolve_name(self, user_id: str, fallback: str) -> str:
         for item in self.config.get("nickname_mappings", []):
-            if isinstance(item, str) and item.startswith(user_id):
+            if isinstance(item, str):
                 uid, sep, name = item.partition(",")
                 if uid.strip() == user_id and name.strip():
                     return name.strip()
         return fallback
+
+    def _strip_at_qq(self, text: str) -> str:
+        import re
+
+        def _resolve_at(m: re.Match) -> str:
+            qq = m.group(1)
+            fallback = m.group(2) or qq
+            return self._resolve_name(qq, fallback)
+
+        text = re.sub(r'@QQ(\d+)\(([^)]*)\)', _resolve_at, text)
+        text = re.sub(r'@(\S+?)\((\d+)\)', _resolve_at, text)
+        return text
