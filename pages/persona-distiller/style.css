@@ -242,6 +242,11 @@ body {
   color: var(--primary);
 }
 
+.hint-warn {
+  color: #d97706;
+  font-weight: 600;
+}
+
 .import-form {
   display: flex;
   flex-direction: column;
