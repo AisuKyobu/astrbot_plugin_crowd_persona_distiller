@@ -273,10 +273,6 @@ class ReplyEngine:
         if not cfg.get("enable_name_change", True):
             return
 
-        blacklist = self.config.get("name_change_blacklist", [])
-        if slug in blacklist:
-            return
-
         persona_idx = await self.storage.get_persona_index(slug)
         if not persona_idx:
             return

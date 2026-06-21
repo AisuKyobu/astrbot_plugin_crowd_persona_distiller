@@ -45,10 +45,6 @@
     "default": 8,
     "description": "冷群休眠时段终点（时）"
   },
-  "name_change_blacklist": {
-    "type": "list",
-    "description": "改群名黑名单（slug 列表）"
-  },
   "reply_blacklist": {
     "type": "list",
     "description": "回复黑名单（slug 列表）"
