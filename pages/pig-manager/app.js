@@ -117,7 +117,7 @@ function renderPersonaList(distilled, pending, notReady) {
 
     document.querySelectorAll(".btn-distill").forEach((btn) => {
         btn.addEventListener("click", () =>
-            doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name)
+            doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name, btn)
         );
     });
 }
@@ -164,7 +164,15 @@ function distillableCard(u) {
     </div>`;
 }
 
-async function doDistill(groupId, userId, userName) {
+let _distilling = false;
+
+async function doDistill(groupId, userId, userName, btn) {
+    if (_distilling) return;
+    _distilling = true;
+    const allButtons = document.querySelectorAll(".btn-distill");
+    allButtons.forEach((b) => { b.disabled = true; b.textContent = "蒸馏中..."; });
+    if (btn) btn.textContent = "处理中...";
+
     showDistillBanner(`<span class="banner-loading">蒸馏中...</span> 正在分析 ${esc(userName)} 的聊天记录`);
     try {
         const result = await bridge.apiPost("distill", {
@@ -176,6 +184,8 @@ async function doDistill(groupId, userId, userName) {
         loadPersonas();
     } catch (e) {
         showDistillBanner(`蒸馏失败：${esc(e.message)}`, false);
+    } finally {
+        _distilling = false;
     }
 }
 
