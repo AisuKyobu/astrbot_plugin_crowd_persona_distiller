@@ -19,7 +19,7 @@ def _json(data, status_code=200):
 
 
 def _err(msg, status_code=400):
-    return jsonify({"status": "error", "message": msg}), status_code
+    return jsonify({"status": "error", "message": msg, "code": status_code}), 200
 
 
 @register(

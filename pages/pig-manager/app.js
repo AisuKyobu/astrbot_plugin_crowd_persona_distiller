@@ -188,7 +188,7 @@ function showDistillBanner(msg, success = null) {
     div.innerHTML = msg;
     const list = document.getElementById("persona-list");
     list.insertBefore(div, list.firstChild);
-    if (success !== null) setTimeout(() => div.remove(), 5000);
+    if (success !== null && success !== false) setTimeout(() => div.remove(), 5000);
 }
 
 // ---- Persona Editor ----
