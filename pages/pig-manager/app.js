@@ -132,6 +132,14 @@ function renderPersonaList(distilled, pending, notReady) {
             openModal(slug, gi, ui, nm);
         });
     });
+
+    document.querySelectorAll(".persona-edit-btn").forEach((btn) => {
+        btn.addEventListener("click", () => {
+            const card = btn.closest(".card-persona");
+            if (!card) return;
+            openModal(card.dataset.slug, card.dataset.group, card.dataset.user, card.dataset.name);
+        });
+    });
 }
 
 function personaCard(p, isDistilled) {
@@ -147,7 +155,7 @@ function personaCard(p, isDistilled) {
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">&#10003; 已蒸馏</span>`
+            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary persona-edit-btn">编辑人格</button>`
             : `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">蒸馏</button>`}
       </div>
     </div>`;
@@ -229,7 +237,7 @@ async function openModal(slug, groupId, userId, name) {
     document.getElementById("modal-title").textContent = `${esc(name)} (${esc(slug)})`;
     document.getElementById("modal-meta").textContent = "加载中...";
     document.getElementById("modal-editor").value = "";
-    document.getElementById("modal").style.display = "flex";
+    document.getElementById("persona-modal").style.display = "flex";
     document.getElementById("modal-status").textContent = "";
 
     try {
@@ -245,7 +253,7 @@ async function openModal(slug, groupId, userId, name) {
 }
 
 function closeModal() {
-    document.getElementById("modal").style.display = "none";
+    document.getElementById("persona-modal").style.display = "none";
 }
 
 async function savePersonaContent() {
