@@ -184,3 +184,4 @@ astrbot_plugin_crowd_persona_distiller/
 - [AstrBot Repo](https://github.com/AstrBotDevs/AstrBot)
 - [AstrBot 插件开发文档](https://docs.astrbot.app/dev/star/plugin-new.html)
 - [pig-skill](https://github.com/Neko-Suwako/pig-skill)
+- [qq-chat-exporter](https://github.com/shuakami/qq-chat-exporter) 
