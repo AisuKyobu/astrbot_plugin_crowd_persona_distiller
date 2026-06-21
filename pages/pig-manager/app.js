@@ -48,11 +48,6 @@ function switchTab(name) {
 async function loadPersonas() {
     const filter = document.getElementById("group-filter");
     const gid = filter.value;
-    if (!gid) {
-        personaList.innerHTML = '<div class="empty">请先选择一个群</div>';
-        statusText.textContent = "";
-        return;
-    }
 
     statusText.textContent = "加载中...";
     try {
@@ -60,17 +55,7 @@ async function loadPersonas() {
             bridge.apiGet("distillable"),
         ]);
 
-        const gUsers = allUsers.filter(u => String(u.group_id) === gid);
-        personas = gUsers;
-
-        const distilledSlugs = new Set(personas.filter(p => p.distilled).map(p => p.slug));
-        const distilled = gUsers.filter(u => distilledSlugs.has(u.slug));
-        const pending = gUsers.filter(u => !distilledSlugs.has(u.slug) && u.reached_threshold)
-            .sort((a, b) => b.message_count - a.message_count);
-        const notReady = gUsers.filter(u => !distilledSlugs.has(u.slug) && !u.reached_threshold)
-            .sort((a, b) => b.message_count - a.message_count);
-
-        // 构建群筛选下拉
+        // 始终构建群下拉，不受 gid 影响
         const groups = new Map();
         for (const u of allUsers) {
             const g = String(u.group_id);
@@ -81,6 +66,22 @@ async function loadPersonas() {
         for (const [gi, gn] of groups) {
             filter.innerHTML += `<option value="${esc(gi)}" ${gi === currentVal ? "selected" : ""}>${esc(gn || gi)} (${esc(gi)})</option>`;
         }
+
+        if (!gid) {
+            personaList.innerHTML = '<div class="empty">请先选择一个群</div>';
+            statusText.textContent = `共 ${groups.size} 个群`;
+            return;
+        }
+
+        const gUsers = allUsers.filter(u => String(u.group_id) === gid);
+        personas = gUsers;
+
+        const distilledSlugs = new Set(gUsers.filter(p => p.distilled).map(p => p.slug));
+        const distilled = gUsers.filter(u => distilledSlugs.has(u.slug));
+        const pending = gUsers.filter(u => !distilledSlugs.has(u.slug) && u.reached_threshold)
+            .sort((a, b) => b.message_count - a.message_count);
+        const notReady = gUsers.filter(u => !distilledSlugs.has(u.slug) && !u.reached_threshold)
+            .sort((a, b) => b.message_count - a.message_count);
 
         renderPersonaList(distilled, pending, notReady);
         const total = distilled.length + pending.length + notReady.length;
