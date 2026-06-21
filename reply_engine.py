@@ -25,6 +25,8 @@ class ReplyEngine:
         self.config = config
         self._cold_task: asyncio.Task | None = None
         self._persona_last_reply: dict[str, float] = {}
+        self._self_id: str | None = None
+        self._self_id_failed: bool = False
 
     # ---------- 概率触发 ----------
 
@@ -226,7 +228,39 @@ class ReplyEngine:
         await self.storage.update_group_state(group_id, last_bot_reply_at=now)
         self._persona_last_reply[slug] = now
 
-    async def _maybe_change_name(
+    async def _get_self_id(self, event: AstrMessageEvent | None) -> str | None:
+        if event:
+            sid = event.get_self_id()
+            if sid:
+                return sid
+
+        if self._self_id:
+            return self._self_id
+        if self._self_id_failed:
+            return None
+
+        platforms = getattr(self.context, "platform_manager", None)
+        if not platforms:
+            self._self_id_failed = True
+            return None
+
+        for plat in platforms:
+            bot = getattr(plat, "bot", None)
+            if not bot or not hasattr(bot, "call_action"):
+                continue
+            try:
+                info = await bot.call_action("get_login_info")
+                sid = str(info.get("user_id", ""))
+                if sid:
+                    self._self_id = sid
+                    return sid
+            except Exception:
+                continue
+
+        self._self_id_failed = True
+        return None
+
+    async def _maybe_change_card(
         self, group_id: str, slug: str, event: AstrMessageEvent | None
     ):
         if not self.config.get("enable_name_change", True):
@@ -246,26 +280,44 @@ class ReplyEngine:
         persona_idx = await self.storage.get_persona_index(slug)
         if not persona_idx:
             return
-        new_name = persona_idx["name"]
+        new_card = persona_idx["name"]
+
+        self_id = await self._get_self_id(event)
+        if not self_id:
+            logger.warning("[群友蒸馏] 无法获取 Bot 自身 ID，跳过改名片")
+            return
+
+        bot = None
+        if event and hasattr(event, "bot"):
+            bot = event.bot
+        else:
+            platforms = getattr(self.context, "platform_manager", None)
+            if platforms:
+                for plat in platforms:
+                    b = getattr(plat, "bot", None)
+                    if b and hasattr(b, "call_action"):
+                        bot = b
+                        break
+
+        if not bot or not hasattr(bot, "call_action"):
+            return
 
         try:
-            if event and hasattr(event, "bot"):
-                await event.bot.set_group_name(
-                    group_id=int(group_id), group_name=new_name
-                )
-            else:
-                platforms = getattr(self.context, "platform_manager", None)
-                if platforms:
-                    for plat in platforms:
-                        if hasattr(plat, "bot") and hasattr(plat.bot, "set_group_name"):
-                            await plat.bot.set_group_name(
-                                group_id=int(group_id), group_name=new_name
-                            )
-                            break
+            await bot.call_action(
+                "set_group_card",
+                group_id=int(group_id),
+                user_id=int(self_id),
+                card=new_card,
+            )
             await self.storage.update_group_state(group_id, last_name_change_at=now)
-            logger.info(f"[群友蒸馏] 群 {group_id} 名称已改为: {new_name}")
+            logger.info(f"[群友蒸馏] 群 {group_id} 名片已改为: {new_card}")
         except Exception as e:
-            logger.warning(f"[群友蒸馏] 改群名失败: {e}")
+            logger.warning(f"[群友蒸馏] 改名片失败: {e}")
+
+    async def _maybe_change_name(
+        self, group_id: str, slug: str, event: AstrMessageEvent | None
+    ):
+        await self._maybe_change_card(group_id, slug, event)
 
     def _format_context(self, messages: list[dict]) -> str:
         if not messages:
