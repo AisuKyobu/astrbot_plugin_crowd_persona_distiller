@@ -142,6 +142,18 @@ class GroupFriendPlugin(Star):
 
             should_reply = await self.reply_engine.should_reply_on_message(event)
             if should_reply:
+                # 如果消息里 @ 了别人但不是 @Bot，跳过扮演回复
+                self_id = event.get_self_id()
+                if self_id:
+                    has_at_other = any(
+                        hasattr(c, "qq")
+                        and str(getattr(c, "qq", "")) not in ("", "all", str(self_id))
+                        for c in event.get_messages()
+                    )
+                    if has_at_other:
+                        should_reply = False
+
+            if should_reply:
                 await self.reply_engine.do_reply(group_id_str, event)
 
         except Exception as e:
