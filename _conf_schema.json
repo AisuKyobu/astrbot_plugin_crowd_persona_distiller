@@ -15,10 +15,20 @@
     "type": "list",
     "description": "监控的群号列表，留空则监控所有群"
   },
+  "min_distill_messages": {
+    "type": "int",
+    "default": 50,
+    "description": "蒸馏最少需要多少条消息（群聊+私聊合计）"
+  },
   "reply_probability": {
     "type": "float",
     "default": 0.05,
     "description": "回复触发概率 (0.0~1.0)"
+  },
+  "context_message_count": {
+    "type": "int",
+    "default": 20,
+    "description": "扮演回复时附带的最近上下文消息数"
   },
   "reply_cooldown_minutes": {
     "type": "int",
@@ -29,6 +39,15 @@
     "type": "int",
     "default": 30,
     "description": "同一 Persona 两次扮演的最小间隔（分钟）"
+  },
+  "reply_blacklist": {
+    "type": "list",
+    "description": "回复黑名单（slug 列表，列表内群友不会被选中扮演）"
+  },
+  "custom_reply_system_prompt": {
+    "type": "text",
+    "default": "",
+    "description": "追加到每次扮演回复的额外 system prompt（全局生效）"
   },
   "cold_group_hours": {
     "type": "int",
@@ -44,25 +63,6 @@
     "type": "int",
     "default": 8,
     "description": "冷群休眠时段终点（时）"
-  },
-  "reply_blacklist": {
-    "type": "list",
-    "description": "回复黑名单（slug 列表）"
-  },
-  "min_distill_messages": {
-    "type": "int",
-    "default": 50,
-    "description": "蒸馏最少需要多少条消息"
-  },
-  "context_message_count": {
-    "type": "int",
-    "default": 20,
-    "description": "扮演回复时附带的最近上下文消息数"
-  },
-  "custom_reply_system_prompt": {
-    "type": "text",
-    "default": "",
-    "description": "追加到每次扮演回复的额外 system prompt（全局生效）"
   },
   "nickname_mappings": {
     "type": "list",
