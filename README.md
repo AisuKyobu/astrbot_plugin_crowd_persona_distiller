@@ -121,19 +121,19 @@ git clone https://github.com/AisuKyobu/astrbot_plugin_crowd_persona_distiller
 
 | 配置项 | 说明 | 默认值 |
 |--------|------|--------|
-| `distill_provider` | 蒸馏分析用 LLM 提供商 | — |
-| `reply_provider` | 回复生成用 LLM 提供商 | — |
-| `target_groups` | 监听的群号列表（空=全部） | `[]` |
+| `distill_provider` | 蒸馏分析用 LLM 提供商（需长上下文+强分析能力） | — |
+| `reply_provider` | 回复生成用 LLM 提供商（快速+便宜即可） | — |
+| `target_groups` | 监听的群号列表，留空则监控所有群 | `[]` |
 | `min_distill_messages` | 蒸馏最少消息数（群聊 + 私聊合计） | 50 |
-| `context_message_count` | 回复时携带的上下文消息数 | 20 |
 | `reply_probability` | 回复触发概率 (0.0~1.0) | 0.05 |
+| `context_message_count` | 扮演回复时附带的最近上下文消息数 | 20 |
 | `reply_cooldown_minutes` | 同群两次回复的最小间隔（分钟） | 120 |
 | `persona_cooldown_minutes` | 同一 Persona 两次扮演的最小间隔（分钟） | 30 |
-| `cold_group_hours` | 冷群检测：N 小时无人发言即触发 | 4 |
-| `cold_group_sleep_start` | 冷群休眠时段起点（时） | 2 |
-| `cold_group_sleep_end` | 冷群休眠时段终点（时） | 8 |
 | `reply_blacklist` | 回复黑名单（slug 列表，列表内群友不会被选中扮演） | `[]` |
-| `custom_reply_system_prompt` | 追加到每次扮演回复的额外系统提示词 | — |
+| `custom_reply_system_prompt` | 追加到每次扮演回复的额外系统提示词（全局生效） | — |
+| `cold_group_hours` | 冷群判定：N 小时无人发言即触发 | 4 |
+| `cold_group_sleep_start` | 冷群休眠时段起点（时），此区间不触发冷群回复 | 2 |
+| `cold_group_sleep_end` | 冷群休眠时段终点（时） | 8 |
 | `nickname_mappings` | 群友称呼映射（通过 WebUI 称呼管理 Tab 编辑） | `[]` |
 
 ## WebUI 面板
