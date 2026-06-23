@@ -268,7 +268,9 @@ class PersonaManager:
     async def correct_persona(
         self, slug: str, correction_text: str
     ) -> Optional[dict]:
-        """根据用户修正意见，调用 LLM 更新 persona.md。返回 {summary, content}"""
+        """根据用户修正意见，调用 LLM 更新 persona.md。返回 {summary, content, status}"""
+        import json, re
+
         provider_id = self.config.get("distill_provider", "")
         if not provider_id:
             return None
@@ -300,35 +302,33 @@ class PersonaManager:
         if not response:
             return None
 
-        # 解析变更摘要和修正后内容
-        summary = ""
-        corrected = response
-        if "=== 变更摘要 ===" in response:
-            parts = response.split("=== 变更摘要 ===", 1)
-            rest = parts[1].strip() if len(parts) > 1 else ""
-            if "=== 修正后内容 ===" in rest:
-                summary_part, content_part = rest.split("=== 修正后内容 ===", 1)
-                summary = summary_part.strip()
-                corrected = content_part.strip()
-            else:
-                corrected = rest
-        elif "=== 修正后内容 ===" in response:
-            parts = response.split("=== 修正后内容 ===", 1)
-            corrected = parts[1].strip() if len(parts) > 1 else response
+        # 提取 JSON（兼容 ```json 包裹和纯 JSON）
+        match = re.search(r'\{[\s\S]*\}', response)
+        if not match:
+            logger.error(f"[群友蒸馏] 人格修正 LLM 未返回 JSON")
+            return None
 
-        if not corrected:
+        try:
+            data = json.loads(match.group(0))
+        except json.JSONDecodeError as e:
+            logger.error(f"[群友蒸馏] 人格修正 JSON 解析失败: {e}")
+            return None
+
+        changes = data.get("changes", []) if isinstance(data, dict) else []
+        persona = data.get("persona", "") if isinstance(data, dict) else ""
+
+        if not persona:
             return None
 
         # 检测是否真的产生了修改
         normalized_existing = existing.rstrip()
-        normalized_corrected = corrected.rstrip()
+        normalized_persona = persona.rstrip()
 
-        # 无摘要且内容未变 → LLM 认为无需修改
-        if normalized_corrected == normalized_existing:
+        if not changes or normalized_persona == normalized_existing:
             logger.info(f"[群友蒸馏] 人格修正跳过：LLM 未作出修改 ({slug})")
-            return {"status": "no_changes", "summary": "", "content": corrected}
+            return {"status": "no_changes", "summary": "", "content": persona}
 
-        self.save_persona(slug, corrected)
+        self.save_persona(slug, persona)
 
         now = datetime.now(timezone.utc).isoformat()
         meta = self.load_meta(slug) or {}
@@ -339,8 +339,9 @@ class PersonaManager:
             slug, message_count=meta.get("message_count", 0), last_distill_at=now
         )
 
+        summary = "\n".join(f"- {c}" for c in changes if isinstance(c, str))
         logger.info(f"[群友蒸馏] 人格修正完成: {slug}")
-        return {"summary": summary, "content": corrected}
+        return {"summary": summary, "content": persona, "status": "ok"}
 
     async def _build_persona(
         self,
