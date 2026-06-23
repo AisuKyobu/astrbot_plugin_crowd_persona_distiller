@@ -358,7 +358,6 @@ function openCorrectModal() {
 }
 
 function closeCorrectModal() {
-    if (_correcting) return;
     document.getElementById("correct-modal").style.display = "none";
 }
 
@@ -382,9 +381,17 @@ async function submitCorrect() {
             slug: _modalSlug,
             correction: correctionText,
         });
-        status.textContent = "修正完成！";
         closeCorrectModal();
+        // 打开 persona 弹窗，展示修正后的内容
         await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
+        // 在 persona 弹窗状态栏提示修正完成
+        const personaStatus = document.getElementById("modal-status");
+        personaStatus.textContent = "人格已修正，请检查内容";
+        personaStatus.style.color = "var(--success)";
+        setTimeout(() => {
+            personaStatus.textContent = "";
+            personaStatus.style.color = "";
+        }, 5000);
     } catch (e) {
         status.textContent = `修正失败: ${esc(e.message)}`;
     } finally {
