@@ -410,6 +410,12 @@ class GroupFriendPlugin(Star):
             corrected = await self.persona_mgr.correct_persona(slug, correction_text)
             if not corrected:
                 return _err("修正失败：LLM 调用出错，请查看服务端日志")
+            if corrected.get("status") == "no_changes":
+                return _json({
+                    "slug": slug,
+                    "corrected": False,
+                    "summary": "LLM 认为当前人格描述已准确，无需修改",
+                })
             return _json({
                 "slug": slug,
                 "corrected": True,

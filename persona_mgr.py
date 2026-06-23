@@ -319,6 +319,15 @@ class PersonaManager:
         if not corrected:
             return None
 
+        # 检测是否真的产生了修改
+        normalized_existing = existing.rstrip()
+        normalized_corrected = corrected.rstrip()
+
+        # 无摘要且内容未变 → LLM 认为无需修改
+        if normalized_corrected == normalized_existing:
+            logger.info(f"[群友蒸馏] 人格修正跳过：LLM 未作出修改 ({slug})")
+            return {"status": "no_changes", "summary": "", "content": corrected}
+
         self.save_persona(slug, corrected)
 
         now = datetime.now(timezone.utc).isoformat()

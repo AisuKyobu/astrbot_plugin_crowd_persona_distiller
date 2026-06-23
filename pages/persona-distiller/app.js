@@ -382,17 +382,19 @@ async function submitCorrect() {
             correction: correctionText,
         });
         closeCorrectModal();
-        // 打开 persona 弹窗展示修正后的内容
         await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
-        // 在 persona 弹窗显示变更摘要
         const personaStatus = document.getElementById("modal-status");
         const summary = result.summary || "";
-        if (summary) {
+        if (result.corrected === false) {
+            personaStatus.textContent = summary;
+            personaStatus.style.color = "var(--warning)";
+        } else if (summary) {
             personaStatus.innerHTML = "已修正：<br>" + esc(summary).replace(/\n/g, "<br>");
+            personaStatus.style.color = "var(--success)";
         } else {
             personaStatus.textContent = "人格已修正，请检查内容";
+            personaStatus.style.color = "var(--success)";
         }
-        personaStatus.style.color = "var(--success)";
         setTimeout(() => {
             personaStatus.textContent = "";
             personaStatus.style.color = "";
