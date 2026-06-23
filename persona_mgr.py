@@ -267,8 +267,8 @@ class PersonaManager:
 
     async def correct_persona(
         self, slug: str, correction_text: str
-    ) -> Optional[str]:
-        """根据用户修正意见，调用 LLM 更新 persona.md"""
+    ) -> Optional[dict]:
+        """根据用户修正意见，调用 LLM 更新 persona.md。返回 {summary, content}"""
         provider_id = self.config.get("distill_provider", "")
         if not provider_id:
             return None
@@ -284,8 +284,7 @@ class PersonaManager:
         build_prompt = (
             f"{correction_prompt}\n\n"
             f"## 当前 persona.md\n```markdown\n{existing}\n```\n\n"
-            f"## 用户修正意见\n{correction_text}\n\n"
-            f"请输出修正后的完整 persona.md 内容。"
+            f"## 用户修正意见\n{correction_text}"
         )
 
         try:
@@ -293,10 +292,29 @@ class PersonaManager:
                 chat_provider_id=provider_id,
                 prompt=build_prompt,
             )
-            corrected = llm_resp.completion_text.strip() if llm_resp else ""
+            response = llm_resp.completion_text.strip() if llm_resp else ""
         except Exception as e:
             logger.error(f"[群友蒸馏] 人格修正 LLM 调用失败: {e}")
             return None
+
+        if not response:
+            return None
+
+        # 解析变更摘要和修正后内容
+        summary = ""
+        corrected = response
+        if "=== 变更摘要 ===" in response:
+            parts = response.split("=== 变更摘要 ===", 1)
+            rest = parts[1].strip() if len(parts) > 1 else ""
+            if "=== 修正后内容 ===" in rest:
+                summary_part, content_part = rest.split("=== 修正后内容 ===", 1)
+                summary = summary_part.strip()
+                corrected = content_part.strip()
+            else:
+                corrected = rest
+        elif "=== 修正后内容 ===" in response:
+            parts = response.split("=== 修正后内容 ===", 1)
+            corrected = parts[1].strip() if len(parts) > 1 else response
 
         if not corrected:
             return None
@@ -313,7 +331,7 @@ class PersonaManager:
         )
 
         logger.info(f"[群友蒸馏] 人格修正完成: {slug}")
-        return corrected
+        return {"summary": summary, "content": corrected}
 
     async def _build_persona(
         self,

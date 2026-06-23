@@ -410,7 +410,11 @@ class GroupFriendPlugin(Star):
             corrected = await self.persona_mgr.correct_persona(slug, correction_text)
             if not corrected:
                 return _err("修正失败：LLM 调用出错，请查看服务端日志")
-            return _json({"slug": slug, "corrected": True})
+            return _json({
+                "slug": slug,
+                "corrected": True,
+                "summary": corrected.get("summary", ""),
+            })
         except Exception as e:
             logger.error(f"[群友蒸馏] correct exception: {e}", exc_info=True)
             return _err(f"修正异常：{e}")

@@ -377,21 +377,26 @@ async function submitCorrect() {
     const status = document.getElementById("correct-modal-status");
     status.textContent = "正在调用 LLM 修正人格，请稍候...";
     try {
-        await bridge.apiPost("persona/correct", {
+        const result = await bridge.apiPost("persona/correct", {
             slug: _modalSlug,
             correction: correctionText,
         });
         closeCorrectModal();
-        // 打开 persona 弹窗，展示修正后的内容
+        // 打开 persona 弹窗展示修正后的内容
         await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
-        // 在 persona 弹窗状态栏提示修正完成
+        // 在 persona 弹窗显示变更摘要
         const personaStatus = document.getElementById("modal-status");
-        personaStatus.textContent = "人格已修正，请检查内容";
+        const summary = result.summary || "";
+        if (summary) {
+            personaStatus.innerHTML = "已修正：<br>" + esc(summary).replace(/\n/g, "<br>");
+        } else {
+            personaStatus.textContent = "人格已修正，请检查内容";
+        }
         personaStatus.style.color = "var(--success)";
         setTimeout(() => {
             personaStatus.textContent = "";
             personaStatus.style.color = "";
-        }, 5000);
+        }, 8000);
     } catch (e) {
         status.textContent = `修正失败: ${esc(e.message)}`;
     } finally {
