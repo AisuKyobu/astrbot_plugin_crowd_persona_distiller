@@ -118,6 +118,13 @@ class GroupFriendPlugin(Star):
         if content.startswith("/"):
             return
 
+        # 检测消息链中是否有 / 开头的 Plain 文本（AstrBot 可能已 strip / 前缀）
+        if any(
+            hasattr(c, "text") and str(getattr(c, "text", "")).startswith("/")
+            for c in event.get_messages()
+        ):
+            return
+
         try:
             group_id_str = str(group_id)
             user_id = str(event.get_sender_id())
