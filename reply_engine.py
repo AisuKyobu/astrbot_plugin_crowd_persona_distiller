@@ -146,7 +146,16 @@ class ReplyEngine:
             return None
 
         context_count = self.config.get("context_message_count", 20)
-        recent = await self.storage.get_recent_messages(group_id, limit=context_count)
+        state = await self.storage.get_group_state(group_id)
+        last_reply_at = state.get("last_bot_reply_at") if state else 0
+        if last_reply_at:
+            recent = await self.storage.get_recent_messages_since(
+                group_id, last_reply_at, limit=context_count
+            )
+            if not recent:
+                recent = await self.storage.get_recent_messages(group_id, limit=context_count)
+        else:
+            recent = await self.storage.get_recent_messages(group_id, limit=context_count)
         history_text = self._format_context(recent)
 
         extra_prompt = self.config.get("custom_reply_system_prompt", "")

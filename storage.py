@@ -198,6 +198,18 @@ class GroupFriendStorage:
         rows = await cursor.fetchall()
         return [dict(row) for row in rows][::-1]
 
+    async def get_recent_messages_since(
+        self, group_id: str, since_ts: float, limit: int = 20
+    ) -> list[dict]:
+        """获取上次 Bot 回复之后的新消息（仅群聊）"""
+        cursor = await self._conn.execute(
+            "SELECT * FROM messages WHERE group_id = ? AND timestamp > ? "
+            "AND chat_type = 'group' ORDER BY timestamp ASC LIMIT ?",
+            (group_id, since_ts, limit),
+        )
+        rows = await cursor.fetchall()
+        return [dict(row) for row in rows]
+
     async def list_active_users(
         self, group_id: str, min_messages: int = 0
     ) -> list[dict]:
