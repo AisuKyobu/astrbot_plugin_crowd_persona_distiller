@@ -152,8 +152,6 @@ class ReplyEngine:
             recent = await self.storage.get_recent_messages_since(
                 group_id, last_reply_at, limit=context_count
             )
-            if not recent:
-                recent = await self.storage.get_recent_messages(group_id, limit=context_count)
         else:
             recent = await self.storage.get_recent_messages(group_id, limit=context_count)
         history_text = self._format_context(recent)
