@@ -69,5 +69,26 @@
     "default": [],
     "description": "用户称呼映射表（通过 WebUI 称呼管理 Tab 编辑）",
     "invisible": true
+  },
+  "vision_provider": {
+    "type": "string",
+    "default": "",
+    "_special": "select_provider",
+    "description": "识图用 LLM 提供商（v0.2+；留空则 fallback 到 reply_provider，必须支持 vision）"
+  },
+  "distill_with_images": {
+    "type": "bool",
+    "default": false,
+    "description": "蒸馏时是否把用户发的图也喂给 LLM（v0.2+；会增加 token 消耗）"
+  },
+  "image_fallback_to_base64": {
+    "type": "bool",
+    "default": false,
+    "description": "QQ CDN 图下载不到时是否回退到 base64 上传 LLM（v0.2+；base64 token 消耗巨大，默认关）"
+  },
+  "distill_message_limit": {
+    "type": "int",
+    "default": 500,
+    "description": "蒸馏时最多取多少条历史消息（v0.2+；超出会截取最近 N 条）"
   }
 }

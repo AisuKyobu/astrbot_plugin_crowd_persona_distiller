@@ -74,11 +74,35 @@ def _get_content_text(msg: dict) -> str:
     return ""
 
 
+def _extract_image_urls_from_msg(msg: dict) -> list[str]:
+    """从 message 中抽出 image 元素 URL 列表。"""
+    urls: list[str] = []
+    content = msg.get("content")
+    if not isinstance(content, dict):
+        return urls
+    elements = content.get("elements")
+    if not isinstance(elements, list):
+        return urls
+    for el in elements:
+        if not isinstance(el, dict):
+            continue
+        if el.get("type") != "image":
+            continue
+        data = el.get("data") or {}
+        if not isinstance(data, dict):
+            continue
+        u = data.get("url") or data.get("file")
+        if isinstance(u, str) and u and not u.startswith("base64://"):
+            urls.append(u)
+    return urls
+
+
 def _is_system_or_media(msg: dict, text: str) -> bool:
     if msg.get("system") or msg.get("recalled"):
         return True
     if not text:
         return True
+    # v0.2 改动: 这些消息**不再直接丢弃**,而是降级为占位文本(由调用方自己用 _extract_image_urls_from_msg 取 URL)
     if text.startswith("[图片:") or text.startswith("[视频:"):
         return True
     if text.startswith("[卡片消息:"):
@@ -117,7 +141,7 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         target_name: 目标昵称或 QQ 号，空则提取所有人
 
     Returns:
-        [{"sender": str, "content": str, "timestamp": int}, ...]
+        [{"sender": str, "content": str, "timestamp": int, "image_urls": list[str]}, ...]
     """
     raw = _get_messages(data)
     messages = []
@@ -127,6 +151,7 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         sender_name = _get_sender_name(msg)
         sender_uin = _get_sender_uin(msg)
         content = _get_content_text(msg)
+        image_urls = _extract_image_urls_from_msg(msg)
 
         if _is_system_or_media(msg, content):
             continue
@@ -138,12 +163,17 @@ def parse_qq_export_json(data, target_name: str = "") -> list[dict]:
         ):
             continue
 
+        # 如果有图且没有文本,放占位符 [图片]
+        if image_urls and not content:
+            content = "[图片]"
+
         messages.append(
             {
                 "sender": sender_name,
                 "sender_uin": sender_uin,
                 "content": content,
                 "timestamp": _format_timestamp(msg.get("timestamp")),
+                "image_urls": image_urls,
             }
         )
     return messages

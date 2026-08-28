@@ -14,7 +14,8 @@ CREATE TABLE IF NOT EXISTS messages (
     user_name TEXT NOT NULL,
     content TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
-    chat_type TEXT NOT NULL DEFAULT 'group'
+    chat_type TEXT NOT NULL DEFAULT 'group',
+    image_urls TEXT NOT NULL DEFAULT '[]'
 );
 
 CREATE INDEX IF NOT EXISTS idx_messages_group_user
@@ -84,6 +85,12 @@ class GroupFriendStorage:
             await self._conn.commit()
         except Exception:
             pass
+        # 迁移: image_urls 列 (Phase 4: 识图)
+        try:
+            await self._conn.execute("ALTER TABLE messages ADD COLUMN image_urls TEXT NOT NULL DEFAULT '[]'")
+            await self._conn.commit()
+        except Exception:
+            pass
         # 迁移: 重建去重索引（包含 chat_type）
         try:
             await self._conn.execute("DROP INDEX IF EXISTS idx_messages_dedup")
@@ -113,13 +120,18 @@ class GroupFriendStorage:
         content: str,
         ts: Optional[int] = None,
         chat_type: str = "group",
+        image_urls: Optional[list] = None,
     ):
         if ts is None:
             ts = int(time.time())
+        if image_urls is None:
+            image_urls = []
+        import json as _json
+        urls_str = _json.dumps(list(image_urls), ensure_ascii=False)
         await self._conn.execute(
-            "INSERT OR IGNORE INTO messages (group_id, user_id, user_name, content, timestamp, chat_type) "
-            "VALUES (?, ?, ?, ?, ?, ?)",
-            (group_id, user_id, user_name, content, ts, chat_type),
+            "INSERT OR IGNORE INTO messages (group_id, user_id, user_name, content, timestamp, chat_type, image_urls) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (group_id, user_id, user_name, content, ts, chat_type, urls_str),
         )
         await self._conn.commit()
 

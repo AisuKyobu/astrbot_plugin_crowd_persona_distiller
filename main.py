@@ -75,31 +75,29 @@ class GroupFriendPlugin(Star):
         if event.get_sender_id() == event.get_self_id():
             return
 
-        if event.is_at_or_wake_command:
-            # 只有真正 @了 Bot 的消息才入库+回复，纯命令（如 /nickname）跳过
-            self_id = event.get_self_id()
-            is_at_bot = any(
-                hasattr(c, "qq") and str(getattr(c, "qq", "")) == self_id
-                for c in event.get_messages()
-            )
-            if not is_at_bot:
-                return
+        group_id_str = str(group_id)
 
+        if event.is_at_or_wake_command:
+            # 已被@ 的消息才入库+回复；纯命令（如 /nickname）走别路径
+            content_preview = event.message_str.strip() if event.message_str else ""
+            if content_preview.startswith("/"):
+                return
             try:
-                group_id_str = str(group_id)
                 user_id = str(event.get_sender_id())
                 user_name = event.get_sender_name() or user_id
                 content = event.message_str.strip() or ""
+                image_urls = self._extract_image_urls(event)
 
                 if content:
                     await self.storage.record_message(
                         group_id_str, user_id, user_name, content,
                         ts=event.message_obj.timestamp if event.message_obj else None,
+                        image_urls=image_urls,
                     )
 
                 cfg = await self.storage.get_group_config(group_id_str)
                 if cfg.get("at_trigger", True):
-                    await self.reply_engine.do_reply(group_id_str, event)
+                    await self.reply_engine.do_reply(group_id_str, event, latest_image_urls=image_urls)
             except Exception as e:
                 logger.error(f"[群友蒸馏] @Bot触发失败: {e}")
             return
@@ -126,13 +124,15 @@ class GroupFriendPlugin(Star):
             return
 
         try:
-            group_id_str = str(group_id)
             user_id = str(event.get_sender_id())
             user_name = event.get_sender_name() or user_id
+
+            image_urls = self._extract_image_urls(event)
 
             await self.storage.record_message(
                 group_id_str, user_id, user_name, content,
                 ts=event.message_obj.timestamp if event.message_obj else None,
+                image_urls=image_urls,
             )
 
             import time
@@ -149,10 +149,31 @@ class GroupFriendPlugin(Star):
 
             should_reply = await self.reply_engine.should_reply_on_message(event)
             if should_reply:
-                await self.reply_engine.do_reply(group_id_str, event)
+                await self.reply_engine.do_reply(group_id_str, event, latest_image_urls=image_urls)
 
         except Exception as e:
             logger.error(f"[群友蒸馏] 消息处理异常: {e}")
+
+    @staticmethod
+    def _extract_image_urls(event) -> list[str]:
+        """从消息链里抽 Image 组件的 URL/路径,过滤 base64。"""
+        urls: list[str] = []
+        try:
+            segs = event.get_messages() or []
+        except Exception:
+            return urls
+        for seg in segs:
+            # 检查 Image 组件,具体类型名字判断
+            tname = type(seg).__name__
+            if tname != "Image":
+                continue
+            for attr in ("url", "file"):
+                v = getattr(seg, attr, None)
+                if isinstance(v, str) and v and not v.startswith("base64://"):
+                    if v not in urls:
+                        urls.append(v)
+                    break
+        return urls
 
     # ---------- 昵称管理 ----------
 
@@ -620,6 +641,9 @@ class GroupFriendPlugin(Star):
                 user_name = uid
                 messages = parse_qq_export_json(data, uid)
                 if not messages:
+                    logger.warning(
+                        f"[群友蒸馏] 按 uid={uid} 没匹配到消息,改走全量+ sender 过滤兜底"
+                    )
                     messages = parse_qq_export_json(data, "")
                     filtered = [
                         m
@@ -666,24 +690,33 @@ class GroupFriendPlugin(Star):
 
         personas = {p["slug"]: p for p in self.persona_mgr.list_all()}
 
+        # 加载 nickname_mappings, 拼成 uid -> [main, alias1, alias2, ...]
+        nick_lookup = self.persona_mgr._parse_nicknames()
+
         results = []
         for u in users:
             uid = u["user_id"]
             slug = u.get("slug") or ""
             gid = u["group_id"]
             p = personas.get(slug, {})
+            nick_list = nick_lookup.get(uid, [])
+            main_nick = nick_list[0] if nick_list else (p.get("name") or u["user_name"])
+            aliases = nick_list[1:] if len(nick_list) > 1 else []
             results.append({
                 "group_id": gid,
                 "group_name": group_names.get(gid, ""),
                 "user_id": uid,
                 "user_name": u["user_name"],
-                "name": p.get("name") or u["user_name"],
+                "name": main_nick,
+                "aliases": aliases,
                 "message_count": u["message_count"],
                 "last_msg_at": u.get("last_msg_at"),
                 "distilled": u["distilled"],
                 "slug": slug,
                 "last_distill_at": p.get("last_distill_at") or "",
                 "reached_threshold": u["message_count"] >= min_messages,
+                "version": p.get("version", ""),
+                "schema": p.get("schema", ""),
             })
         return _json(results)
 
