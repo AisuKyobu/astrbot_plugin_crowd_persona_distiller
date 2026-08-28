@@ -25,10 +25,29 @@
           <select id="group-filter" class="select">
             <option value="">-- 请选择群 --</option>
           </select>
+          <div class="toolbar-search">
+            <input type="text" id="persona-search" class="input" placeholder="搜索:名字 / 别名 / QQ号" disabled />
+          </div>
+          <select id="persona-sort" class="select select-sm" disabled>
+            <option value="msg_desc">消息数 ↓</option>
+            <option value="msg_asc">消息数 ↑</option>
+            <option value="last_desc">最近发言 ↓</option>
+            <option value="last_asc">最近发言 ↑</option>
+            <option value="status">蒸馏状态</option>
+          </select>
           <span id="status-text" class="status"></span>
         </div>
+        <div id="stats-bar" class="stats-bar" style="display:none">
+          <div class="stat stat-distilled"><span class="stat-num" id="stat-distilled">0</span><span class="stat-label">已蒸馏</span></div>
+          <div class="stat stat-pending"><span class="stat-num" id="stat-pending">0</span><span class="stat-label">可蒸馏</span></div>
+          <div class="stat stat-notready"><span class="stat-num" id="stat-notready">0</span><span class="stat-label">未达标</span></div>
+          <div class="stat stat-total"><span class="stat-num" id="stat-total">0</span><span class="stat-label">合计</span></div>
+        </div>
         <div id="persona-list" class="card-list">
-          <div class="empty">请先选择一个群</div>
+          <div class="empty-illustration">
+            <div class="empty-title">请先选择一个群</div>
+            <div class="empty-hint">选择群后将显示该群的群友列表、蒸馏状态和消息数</div>
+          </div>
         </div>
       </section>
 
@@ -36,6 +55,9 @@
       <section id="tab-nicknames" class="tab-content">
         <div class="toolbar">
           <button id="btn-nickname-add" class="btn btn-primary">+ 添加称呼</button>
+          <div class="toolbar-search">
+            <input type="text" id="nickname-search" class="input" placeholder="搜索:QQ号 / 称呼" />
+          </div>
           <span id="nickname-status" class="status"></span>
         </div>
         <table id="nickname-table" class="data-table">
@@ -114,7 +136,10 @@
               <button id="btn-import-confirm" class="btn btn-save" disabled>确认导入</button>
             </div>
             <div id="import-preview" class="import-preview">
-              <div class="empty">选择文件并填写信息后预览</div>
+              <div class="empty-illustration">
+                <div class="empty-title">选择文件并填写信息后预览</div>
+                <div class="empty-hint">支持 qq-chat-exporter v5.x 导出的群聊 / 私聊 JSON</div>
+              </div>
             </div>
           </div>
         </div>
@@ -132,13 +157,22 @@
         <div class="modal-body">
           <textarea id="modal-editor" class="editor" placeholder="加载 persona.md 内容..."></textarea>
         </div>
-        <div class="modal-footer">
-          <button id="modal-save" class="btn btn-save">保存</button>
-          <button id="modal-redistill" class="btn btn-primary">重新蒸馏</button>
-          <button id="modal-incremental" class="btn btn-primary">增量更新</button>
-          <button id="modal-correct" class="btn btn-primary">修正人格</button>
-          <button id="modal-delete" class="btn btn-danger">删除此人格</button>
-          <span id="modal-status" class="status"></span>
+        <div id="modal-status-bar" class="modal-status-bar" style="display:none">
+          <div class="modal-status-content">
+            <span id="modal-status" class="status"></span>
+            <button id="modal-status-dismiss" class="btn btn-link">知道了</button>
+          </div>
+        </div>
+        <div class="modal-footer modal-footer-split">
+          <div class="modal-footer-group modal-footer-main">
+            <button id="modal-save" class="btn btn-save">保存</button>
+            <button id="modal-redistill" class="btn btn-primary">重新蒸馏</button>
+            <button id="modal-incremental" class="btn btn-primary">增量更新</button>
+            <button id="modal-correct" class="btn btn-primary">修正人格</button>
+          </div>
+          <div class="modal-footer-group modal-footer-danger">
+            <button id="modal-delete" class="btn btn-danger">删除此人格</button>
+          </div>
         </div>
       </div>
     </div>

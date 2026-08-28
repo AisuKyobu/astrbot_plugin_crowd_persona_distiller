@@ -19,6 +19,8 @@ tabs.forEach((t) =>
 document.getElementById("btn-import-preview").addEventListener("click", previewImport);
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
 document.getElementById("group-filter").addEventListener("change", loadPersonas);
+document.getElementById("persona-search").addEventListener("input", applySearchSort);
+document.getElementById("persona-sort").addEventListener("change", applySearchSort);
 document.getElementById("config-group-select").addEventListener("change", onConfigGroupChange);
 document.querySelectorAll("input[name='reply_mode']").forEach((r) => r.addEventListener("change", onModeChange));
 document.getElementById("btn-save-config").addEventListener("click", saveConfig);
@@ -32,6 +34,9 @@ document.getElementById("modal-redistill").addEventListener("click", redistillFr
 document.getElementById("modal-delete").addEventListener("click", deleteFromModal);
 document.getElementById("modal-incremental").addEventListener("click", incrementalFromModal);
 document.getElementById("modal-correct").addEventListener("click", openCorrectModal);
+document.getElementById("modal-status-dismiss").addEventListener("click", () => {
+    document.getElementById("modal-status-bar").style.display = "none";
+});
 
 // Correct modal bindings
 const correctModal = document.getElementById("correct-modal");
@@ -47,6 +52,9 @@ document.getElementById("nickname-modal-cancel").addEventListener("click", close
 nickModal.addEventListener("click", (e) => { if (e.target === nickModal) closeNicknameModal(); });
 document.getElementById("nickname-modal-save").addEventListener("click", saveNicknameFromModal);
 
+// Nickname 搜索
+document.getElementById("nickname-search").addEventListener("input", applyNicknameSearch);
+
 loadPersonas();
 
 // ---- Tab Switching ----
@@ -60,18 +68,21 @@ function switchTab(name) {
 
 // ---- Persona List ----
 
+let _currentGUsers = [];
+
 async function loadPersonas() {
     const filter = document.getElementById("group-filter");
     const gid = filter.value;
 
     statusText.textContent = "加载中...";
     personaList.innerHTML = '<div class="skeleton" style="height:120px;margin-bottom:8px"></div><div class="skeleton" style="height:80px;margin-bottom:8px"></div><div class="skeleton" style="height:60px"></div>';
+    document.getElementById("stats-bar").style.display = "none";
     try {
         const [allUsers] = await Promise.all([
             bridge.apiGet("distillable"),
         ]);
 
-        // 始终构建群下拉，不受 gid 影响
+        // 始终构建群下拉,不受 gid 影响
         const groups = new Map();
         for (const u of allUsers) {
             const g = String(u.group_id);
@@ -84,31 +95,90 @@ async function loadPersonas() {
         }
 
         if (!gid) {
-            personaList.innerHTML = '<div class="empty"><p>选择一个群开始管理</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">选择群后将显示该群的群友列表、蒸馏状态和消息数</p></div>';
+            _currentGUsers = [];
+            personaList.innerHTML = '<div class="empty-illustration"><div class="empty-title">请先选择一个群</div><div class="empty-hint">选择群后将显示该群的群友列表、蒸馏状态和消息数</div></div>';
             statusText.textContent = `共 ${groups.size} 个群`;
+            setSearchSortEnabled(false);
             return;
         }
 
         const gUsers = allUsers.filter(u => String(u.group_id) === gid);
-        personas = gUsers;
-
-        const distilledSlugs = new Set(gUsers.filter(p => p.distilled).map(p => p.slug));
-        const distilled = gUsers.filter(u => distilledSlugs.has(u.slug));
-        const pending = gUsers.filter(u => !distilledSlugs.has(u.slug) && u.reached_threshold)
-            .sort((a, b) => b.message_count - a.message_count);
-        const notReady = gUsers.filter(u => !distilledSlugs.has(u.slug) && !u.reached_threshold)
-            .sort((a, b) => b.message_count - a.message_count);
-
-        renderPersonaList(distilled, pending, notReady);
-        const total = distilled.length + pending.length + notReady.length;
-        statusText.textContent = `${distilled.length} 已蒸馏 / ${pending.length} 待蒸馏 / 共 ${total} 人`;
+        _currentGUsers = gUsers;
+        setSearchSortEnabled(true);
+        applySearchSort();
     } catch (e) {
         statusText.textContent = `加载失败`;
-        personaList.innerHTML = `<div class="empty"><p>加载失败</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">${esc(e.message)}</p></div>`;
+        personaList.innerHTML = `<div class="empty-illustration"><div class="empty-title">加载失败</div><div class="empty-hint">${esc(e.message)}</div></div>`;
+        _currentGUsers = [];
     }
 }
 
-function renderPersonaList(distilled, pending, notReady) {
+function setSearchSortEnabled(enabled) {
+    document.getElementById("persona-search").disabled = !enabled;
+    document.getElementById("persona-sort").disabled = !enabled;
+}
+
+function applySearchSort() {
+    if (!_currentGUsers.length) return;
+    const query = (document.getElementById("persona-search").value || "").trim().toLowerCase();
+    const sortKey = document.getElementById("persona-sort").value;
+
+    let list = _currentGUsers.slice();
+    if (query) {
+        list = list.filter((u) => {
+            const hay = [
+                u.name, u.user_name, u.user_id,
+                ...(u.aliases || []),
+            ].filter(Boolean).join(" ").toLowerCase();
+            return hay.includes(query);
+        });
+    }
+
+    // 排序
+    const cmpDistilled = (a, b) => Number(!!b.distilled) - Number(!!a.distilled);
+    list.sort((a, b) => {
+        switch (sortKey) {
+            case "msg_asc":
+                return (a.message_count || 0) - (b.message_count || 0);
+            case "last_desc":
+                return (b.last_msg_at || 0) - (a.last_msg_at || 0);
+            case "last_asc":
+                return (a.last_msg_at || 0) - (b.last_msg_at || 0);
+            case "status":
+                return cmpDistilled(a, b) || (b.message_count || 0) - (a.message_count || 0);
+            case "msg_desc":
+            default:
+                return (b.message_count || 0) - (a.message_count || 0);
+        }
+    });
+
+    // 三分类
+    const distilled = list.filter((u) => u.distilled);
+    const pending = list.filter((u) => !u.distilled && u.reached_threshold);
+    const notReady = list.filter((u) => !u.distilled && !u.reached_threshold);
+
+    renderStatsBar(distilled, pending, notReady, list.length, query, _currentGUsers.length);
+    renderPersonaList(distilled, pending, notReady, query, list.length, _currentGUsers.length);
+}
+
+function renderStatsBar(distilled, pending, notReady, shown, total, query) {
+    const bar = document.getElementById("stats-bar");
+    if (total === 0) {
+        bar.style.display = "none";
+        return;
+    }
+    bar.style.display = "";
+    document.getElementById("stat-distilled").textContent = distilled.length;
+    document.getElementById("stat-pending").textContent = pending.length;
+    document.getElementById("stat-notready").textContent = notReady.length;
+    document.getElementById("stat-total").textContent = total;
+
+    let suffix = ` / 共 ${total} 人`;
+    if (query) suffix += ` (已过滤)`;
+    statusText.textContent = `${distilled.length} 已蒸馏 / ${pending.length} 可蒸馏 / ${notReady.length} 未达标${suffix}`;
+}
+
+function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, total = 0) {
     const html = [];
 
     if (distilled.length) {
@@ -127,7 +197,17 @@ function renderPersonaList(distilled, pending, notReady) {
     }
 
     if (!html.length) {
-        personaList.innerHTML = '<div class="empty"><p>该群暂无群友消息</p><p style="font-size:12px;color:var(--ink-3);margin-top:4px">插件会自动记录群聊消息，或前往「数据导入」上传历史聊天记录</p></div>';
+        if (query && shown === 0 && total > 0) {
+            personaList.innerHTML = `<div class="empty-illustration">
+                <div class="empty-title">没找到匹配「${esc(query)}」的群友</div>
+                <div class="empty-hint">该群共有 ${total} 人;试试搜 QQ 号、主名或别名</div>
+            </div>`;
+        } else {
+            personaList.innerHTML = `<div class="empty-illustration">
+                <div class="empty-title">该群暂无群友消息</div>
+                <div class="empty-hint">插件会自动记录群聊消息,或在「数据导入」上传 qq-chat-exporter 导出的历史聊天记录</div>
+            </div>`;
+        }
         return;
     }
 
@@ -151,7 +231,8 @@ function renderPersonaList(distilled, pending, notReady) {
     });
 
     document.querySelectorAll(".persona-edit-btn").forEach((btn) => {
-        btn.addEventListener("click", () => {
+        btn.addEventListener("click", (e) => {
+            e.stopPropagation();
             const card = btn.closest(".card-persona");
             if (!card) return;
             openModal(card.dataset.slug, card.dataset.group, card.dataset.user, card.dataset.name);
@@ -162,17 +243,34 @@ function renderPersonaList(distilled, pending, notReady) {
 function personaCard(p, isDistilled) {
     const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
+    const aliases = p.aliases || [];
+    const aliasHtml = aliases.length
+        ? `<span class="alias-chips">${aliases.map(a => `<span class="alias-chip">${esc(a)}</span>`).join("")}</span>`
+        : "";
+    const ver = (p.version || "").toString();
+    const isV1 = ver === "v1" || (!ver && !p.schema);
+    const verBadge = isV1
+        ? `<span class="version-badge v1" title="v1 旧格式,建议重新蒸馏以升级到 v2">v1</span>`
+        : `<span class="version-badge v2" title="v2 格式(stats + 真实语料)">v2</span>`;
+    const upgHint = isV1
+        ? `<div class="upgrade-hint">⚠️ v1 旧格式 — 点击"编辑人格" → "重新蒸馏" 升级到 v2</div>`
+        : "";
     return `
     <div class="card card-persona ${isDistilled ? "distilled" : ""}" data-slug="${esc(p.slug)}" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">
       <div class="card-info">
-        <div class="card-name">${esc(p.name)} <span class="slug-tag">[${esc(p.slug)}]</span></div>
+        <div class="card-name">
+          <span class="main-nick">${esc(p.name)}</span> ${verBadge}
+          <span class="slug-tag">[${esc(p.slug)}]</span>
+          ${aliasHtml}
+        </div>
         <div class="card-meta">
           ${gname} · ${p.message_count || 0} 条 · ${ts || "—"}
         </div>
+        ${upgHint}
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">&#10003; 已蒸馏</span><button class="btn btn-primary persona-edit-btn">编辑人格</button>`
+            ? `<span class="distilled-badge">✓ 已蒸馏</span><button class="btn btn-primary persona-edit-btn">编辑人格</button>`
             : `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">蒸馏</button>`}
       </div>
     </div>`;
@@ -181,21 +279,33 @@ function personaCard(p, isDistilled) {
 function distillableCard(u) {
     const lastTs = u.last_msg_at ? new Date(u.last_msg_at * 1000).toLocaleDateString("zh-CN") : "—";
     const gname = u.group_name ? `${esc(u.group_name)} (${esc(u.group_id)})` : `群 ${esc(u.group_id)}`;
-    const uname = u.user_name === u.user_id ? `${esc(u.user_name)} (QQ)` : esc(u.user_name);
+    const nickList = (u.aliases && u.aliases.length) ? [u.name || u.user_name, ...u.aliases] : [];
+    // u.name 是 API 返回的主名,user_name 是 QQ 群昵称,显示优先级: 主名 > QQ 昵称
+    const displayName = u.name || (u.user_name === u.user_id ? `${u.user_name} (QQ)` : u.user_name);
+    const isMainCustom = u.name && u.name !== u.user_name;  // API 给了自定义主名(来自 nickname_mappings)
+    const aliasHtml = (u.aliases && u.aliases.length)
+        ? `<span class="alias-chips">${u.aliases.map(a => `<span class="alias-chip">${esc(a)}</span>`).join("")}</span>`
+        : "";
     const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
     return `
     <div class="card${u.reached_threshold ? "" : " not-ready"}">
       <div class="card-info">
-        <div class="card-name">${uname} <span class="user-id-tag">${esc(u.user_id)}</span></div>
+        <div class="card-name">
+          <span class="main-nick">${esc(displayName)}</span>
+          ${isMainCustom ? '<span class="main-marker" title="来自 nickname_mappings 设定的主名">主</span>' : ''}
+          <span class="user-id-tag">${esc(u.user_id)}</span>
+          ${aliasHtml}
+        </div>
         <div class="card-meta">
           ${gname} · ${u.message_count} 条 · 最后发言 ${lastTs}
           ${u.reached_threshold ? "" : `<div class="progress-bar"><div class="progress-track"><div class="progress-fill" style="width:${bar}%"></div></div><span class="progress-text">${bar}%</span></div>`}
         </div>
+        ${isMainCustom ? `<div class="distill-hint">蒸馏将用「主名 + 别名」作为人格基础</div>` : ""}
       </div>
       <div class="card-actions">
         ${u.reached_threshold
-            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(u.user_name)}">蒸馏</button>`
+            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(displayName)}">蒸馏</button>`
             : `<button class="btn" disabled>需 ${minNeeded} 条</button>`}
       </div>
     </div>`;
@@ -235,7 +345,7 @@ function showDistillBanner(msg, success = null) {
     div.innerHTML = msg;
     const list = document.getElementById("persona-list");
     list.insertBefore(div, list.firstChild);
-    if (success !== null && success !== false) setTimeout(() => div.remove(), 5000);
+    if (success === undefined) setTimeout(() => div.remove(), 5000);
 }
 
 // ---- Persona Modal ----
@@ -255,7 +365,7 @@ async function openModal(slug, groupId, userId, name) {
     document.getElementById("modal-meta").textContent = "加载中...";
     document.getElementById("modal-editor").value = "";
     document.getElementById("persona-modal").style.display = "flex";
-    document.getElementById("modal-status").textContent = "";
+    document.getElementById("modal-status-bar").style.display = "none";
 
     try {
         const data = await bridge.apiGet(`persona/${slug}`);
@@ -263,7 +373,23 @@ async function openModal(slug, groupId, userId, name) {
         const meta = data.meta || {};
         const mc = meta.message_count || 0;
         const ts = (meta.last_distill_at || "").slice(0, 10);
-        document.getElementById("modal-meta").textContent = `消息数: ${mc} · 最后蒸馏: ${ts || "—"}`;
+        const ver = meta.version || "未知";
+        const isV1 = ver === "v1" || (ver === "未知" && !meta.schema);
+        const verBadge = isV1
+            ? `<span class="version-badge v1">v1</span>`
+            : `<span class="version-badge v2">${esc(ver)}</span>`;
+        const stats = meta.stats || null;
+        const statsHtml = stats
+            ? `<div class="modal-stats">${esc(stats)}</div>`
+            : "";
+        const v1Warn = isV1
+            ? `<div class="upgrade-hint">⚠️ v1 旧格式 persona,建议点"重新蒸馏"升级到 v2(获得 stats + 真实语料增强)</div>`
+            : "";
+        document.getElementById("modal-meta").innerHTML = `
+            <div class="modal-meta-row">${verBadge} 消息数: <b>${mc}</b> · 最后蒸馏: ${ts || "—"}</div>
+            ${v1Warn}
+            ${statsHtml}
+        `;
     } catch (e) {
         document.getElementById("modal-meta").textContent = `加载失败: ${e.message}`;
     }
@@ -271,44 +397,51 @@ async function openModal(slug, groupId, userId, name) {
 
 function closeModal() {
     document.getElementById("persona-modal").style.display = "none";
+    document.getElementById("modal-status-bar").style.display = "none";
+}
+
+function showModalStatus(msg, tone = "info") {
+    const bar = document.getElementById("modal-status-bar");
+    bar.classList.remove("is-error", "is-success");
+    if (tone === "error") bar.classList.add("is-error");
+    else if (tone === "success") bar.classList.add("is-success");
+    bar.style.display = "";
+    document.getElementById("modal-status").innerHTML = msg;
 }
 
 async function savePersonaContent() {
     if (!_modalSlug) return;
-    const status = document.getElementById("modal-status");
-    status.textContent = "保存中...";
+    showModalStatus("保存中...", "info");
     try {
         await bridge.apiPost(`persona/${_modalSlug}/save`, {
             content: document.getElementById("modal-editor").value,
         });
-        status.textContent = "已保存";
+        showModalStatus("已保存", "success");
     } catch (e) {
-        status.textContent = `保存失败: ${e.message}`;
+        showModalStatus(`保存失败: ${esc(e.message)}`, "error");
     }
 }
 
 async function redistillFromModal() {
     if (!_modalUserId || !_modalGroupId) return;
-    const status = document.getElementById("modal-status");
-    status.textContent = "蒸馏中...";
+    showModalStatus("蒸馏中...", "info");
     try {
         const result = await bridge.apiPost("distill", {
             group_id: _modalGroupId,
             user_id: _modalUserId,
             user_name: _modalName,
         });
-        status.textContent = `蒸馏完成: ${esc(result.name)}`;
+        showModalStatus(`蒸馏完成: ${esc(result.name)}`, "success");
         await openModal(result.slug, _modalGroupId, _modalUserId, result.name);
         loadPersonas();
     } catch (e) {
-        status.textContent = `蒸馏失败: ${esc(e.message)}`;
+        showModalStatus(`蒸馏失败: ${esc(e.message)}`, "error");
     }
 }
 
 async function incrementalFromModal() {
     if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
-    const status = document.getElementById("modal-status");
-    status.textContent = "增量更新中...";
+    showModalStatus("增量更新中...", "info");
     try {
         const result = await bridge.apiPost("persona/incremental", {
             slug: _modalSlug,
@@ -316,21 +449,20 @@ async function incrementalFromModal() {
             user_id: _modalUserId,
         });
         if (result.status === "no_new_messages") {
-            status.textContent = result.message;
+            showModalStatus(result.message, "info");
         } else {
-            status.textContent = `增量更新完成 (${result.version})`;
+            showModalStatus(`增量更新完成 (${result.version})`, "success");
             await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
         }
     } catch (e) {
-        status.textContent = `增量更新失败: ${esc(e.message)}`;
+        showModalStatus(`增量更新失败: ${esc(e.message)}`, "error");
     }
 }
 
 async function deleteFromModal() {
     if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
     if (!confirm(`确定删除 ${esc(_modalName)} 的人格和所有聊天记录？此操作不可恢复。`)) return;
-    const status = document.getElementById("modal-status");
-    status.textContent = "删除中...";
+    showModalStatus("删除中...", "info");
     try {
         await bridge.apiPost("persona/delete", {
             slug: _modalSlug,
@@ -340,7 +472,7 @@ async function deleteFromModal() {
         closeModal();
         loadPersonas();
     } catch (e) {
-        status.textContent = `删除失败: ${esc(e.message)}`;
+        showModalStatus(`删除失败: ${esc(e.message)}`, "error");
     }
 }
 
@@ -383,22 +515,14 @@ async function submitCorrect() {
         });
         closeCorrectModal();
         await openModal(_modalSlug, _modalGroupId, _modalUserId, _modalName);
-        const personaStatus = document.getElementById("modal-status");
         const summary = result.summary || "";
         if (result.corrected === false) {
-            personaStatus.textContent = summary;
-            personaStatus.style.color = "var(--warning)";
+            showModalStatus(summary || "LLM 认为当前人格描述已准确，无需修改", "info");
         } else if (summary) {
-            personaStatus.innerHTML = "已修正：<br>" + esc(summary).replace(/\n/g, "<br>");
-            personaStatus.style.color = "var(--success)";
+            showModalStatus("已修正:<br>" + esc(summary).replace(/\n/g, "<br>"), "success");
         } else {
-            personaStatus.textContent = "人格已修正，请检查内容";
-            personaStatus.style.color = "var(--success)";
+            showModalStatus("人格已修正，请检查内容", "success");
         }
-        setTimeout(() => {
-            personaStatus.textContent = "";
-            personaStatus.style.color = "";
-        }, 8000);
     } catch (e) {
         status.textContent = `修正失败: ${esc(e.message)}`;
     } finally {
@@ -416,19 +540,17 @@ async function previewImport() {
     const file = fileInput.files[0];
 
     if (!file) {
-        showImportPreview('<div class="empty">请选择 JSON 文件</div>');
+        showImportPreview('<div class="empty-illustration"><div class="empty-title">请选择 JSON 文件</div></div>');
         return;
     }
 
-    showImportPreview('<div class="empty">解析中...</div>');
+    showImportPreview(renderImportProgress("解析中…", 0, 0));
 
     try {
         const base64 = await readFileAsBase64(file);
         const CHUNK_SIZE = 500 * 1024; // 500KB
         const totalChunks = Math.ceil(base64.length / CHUNK_SIZE);
         const uploadId = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random()}`;
-
-        showImportPreview(`<div class="empty">上传中 (0/${totalChunks})...</div>`);
 
         for (let i = 0; i < totalChunks; i++) {
             const chunk = base64.slice(i * CHUNK_SIZE, (i + 1) * CHUNK_SIZE);
@@ -439,12 +561,10 @@ async function previewImport() {
                 file_name: file.name,
                 data: chunk,
             });
-            if (i % 5 === 0 || i === totalChunks - 1) {
-                showImportPreview(`<div class="empty">上传中 (${i + 1}/${totalChunks})...</div>`);
-            }
+            showImportPreview(renderImportProgress("上传中", i + 1, totalChunks));
         }
 
-        showImportPreview('<div class="empty">解析中...</div>');
+        showImportPreview(renderImportProgress("解析中…", totalChunks, totalChunks));
         const summary = await bridge.apiPost("import/assemble", {
             upload_id: uploadId,
         });
@@ -489,7 +609,7 @@ async function previewImport() {
 
         document.getElementById("btn-import-confirm").disabled = false;
     } catch (e) {
-        showImportPreview(`<div class="empty">预览失败: ${esc(e.message)}</div>`);
+        showImportPreview(`<div class="empty-illustration"><div class="empty-title" style="color:var(--danger)">预览失败</div><div class="empty-hint">${esc(e.message)}</div></div>`);
         document.getElementById("btn-import-confirm").disabled = true;
     }
 }
@@ -498,22 +618,22 @@ async function confirmImport() {
     const chatType = document.querySelector("input[name='chat_type']:checked")?.value || "group";
     const groupId = document.getElementById("import-group-id").value.trim();
     if (!groupId) {
-        showImportPreview('<div class="empty">请填写群号或对方QQ</div>');
+        showImportPreview('<div class="empty-illustration"><div class="empty-title">请填写群号或对方QQ</div></div>');
         return;
     }
     if (!importToken) {
-        showImportPreview('<div class="empty">请先预览文件</div>');
+        showImportPreview('<div class="empty-illustration"><div class="empty-title">请先预览文件</div></div>');
         return;
     }
 
     const checked = Array.from(document.querySelectorAll(".user-check:checked"));
     const user_ids = checked.map((cb) => cb.value);
     if (!user_ids.length) {
-        showImportPreview('<div class="empty">请至少选择一个用户</div>');
+        showImportPreview('<div class="empty-illustration"><div class="empty-title">请至少选择一个用户</div></div>');
         return;
     }
 
-    showImportPreview('<div class="empty">导入中...</div>');
+    showImportPreview('<div class="import-progress"><div class="import-progress-bar"><div class="import-progress-fill" style="width:100%; background: var(--accent); animation: pulse 1.5s infinite"></div></div><div class="import-progress-meta"><span>导入中…</span><span>请稍候</span></div></div>');
 
     try {
         const result = await bridge.apiPost("import/execute", {
@@ -532,12 +652,27 @@ async function confirmImport() {
         importToken = "";
         loadPersonas();
     } catch (e) {
-        showImportPreview(`<div class="empty">导入失败: ${esc(e.message)}</div>`);
+        showImportPreview(`<div class="empty-illustration"><div class="empty-title" style="color:var(--danger)">导入失败</div><div class="empty-hint">${esc(e.message)}</div></div>`);
+        importToken = "";
+        document.getElementById("btn-import-confirm").disabled = true;
     }
 }
 
 function showImportPreview(html) {
     document.getElementById("import-preview").innerHTML = html;
+}
+
+function renderImportProgress(stage, current, total) {
+    const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+    return `<div class="import-progress">
+        <div class="import-progress-bar">
+            <div class="import-progress-fill" style="width:${pct}%"></div>
+        </div>
+        <div class="import-progress-meta">
+            <span>${esc(stage)}${total > 0 ? ` · ${current}/${total} 块` : ""}</span>
+            <span>${pct}%</span>
+        </div>
+    </div>`;
 }
 
 // ---- Helpers ----
@@ -634,6 +769,7 @@ async function saveConfig() {
 // ---- Nickname Management ----
 
 let _nickEditUid = "";
+let _nickCache = {};
 
 async function loadNicknames() {
     const status = document.getElementById("nickname-status");
@@ -641,12 +777,25 @@ async function loadNicknames() {
     status.textContent = "加载中...";
     try {
         const nicks = await bridge.apiGet("nicknames");
-        renderNicknameTable(nicks || {});
-        status.textContent = `共 ${Object.keys(nicks || {}).length} 条映射`;
+        _nickCache = nicks || {};
+        applyNicknameSearch();
+        status.textContent = `共 ${Object.keys(_nickCache).length} 条映射`;
     } catch (e) {
-        status.textContent = `加载失败: ${e.message}`;
+        status.textContent = `加载失败: ${esc(e.message)}`;
         tbody.innerHTML = '<tr><td colspan="3" class="empty">加载失败</td></tr>';
     }
+}
+
+function applyNicknameSearch() {
+    const query = (document.getElementById("nickname-search").value || "").trim().toLowerCase();
+    let entries = Object.entries(_nickCache);
+    if (query) {
+        entries = entries.filter(([uid, name]) =>
+            String(uid).toLowerCase().includes(query) ||
+            String(name).toLowerCase().includes(query)
+        );
+    }
+    renderNicknameTable(Object.fromEntries(entries));
 }
 
 function renderNicknameTable(nicks) {
@@ -656,7 +805,12 @@ function renderNicknameTable(nicks) {
     document.getElementById("btn-nickname-add").onclick = () => openNicknameModal("", "");
 
     if (!entries.length) {
-        tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼。<br><span style="font-size:12px;color:var(--ink-3)">点击「+ 添加称呼」为群友绑定昵称，蒸馏和回复时会自动使用</span></td></tr>';
+        const query = (document.getElementById("nickname-search").value || "").trim();
+        if (query) {
+            tbody.innerHTML = `<tr><td colspan="3" class="empty">没找到匹配「${esc(query)}」的称呼</td></tr>`;
+        } else {
+            tbody.innerHTML = '<tr><td colspan="3" class="empty">还没有设置任何称呼。<br><span style="font-size:12px;color:var(--ink-3)">点击「+ 添加称呼」为群友绑定昵称,蒸馏和回复时会自动使用</span></td></tr>';
+        }
         return;
     }
     tbody.innerHTML = entries

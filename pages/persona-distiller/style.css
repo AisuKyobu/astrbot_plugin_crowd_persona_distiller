@@ -1,4 +1,4 @@
-/* ── Design Tokens (Restrained product, 4pt scale) ── */
+﻿/* ── Design Tokens (Restrained product, 4pt scale) ── */
 :root {
   /* Neutrals */
   --surface: #ffffff;
@@ -117,7 +117,70 @@ body {
   align-items: center;
   gap: var(--md);
   margin-bottom: var(--lg);
+  flex-wrap: wrap;
 }
+
+.toolbar-search {
+  flex: 1;
+  min-width: 200px;
+  max-width: 360px;
+}
+
+.toolbar-search .input {
+  width: 100%;
+}
+
+.select-sm {
+  min-width: 140px;
+  padding: 6px 8px;
+  font-size: 12px;
+}
+
+/* ── Stats Bar ── */
+.stats-bar {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: var(--sm);
+  margin-bottom: var(--lg);
+  padding: var(--md) var(--lg);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--r);
+}
+
+.stat {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 4px 8px;
+  border-left: 3px solid var(--border);
+}
+
+.stat-num {
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.stat-label {
+  font-size: 11px;
+  color: var(--ink-3);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.stat-distilled { border-left-color: var(--success); }
+.stat-distilled .stat-num { color: var(--success); }
+
+.stat-pending { border-left-color: var(--accent); }
+.stat-pending .stat-num { color: var(--accent); }
+
+.stat-notready { border-left-color: var(--ink-4); }
+.stat-notready .stat-num { color: var(--ink-3); }
+
+.stat-total { border-left-color: var(--border-strong); }
+.stat-total .stat-num { color: var(--ink-2); }
 
 /* ── Buttons ── */
 .btn {
@@ -670,6 +733,142 @@ body {
   margin-left: auto;
 }
 
+.modal-footer-split {
+  justify-content: space-between;
+  gap: var(--md);
+}
+
+.modal-footer-group {
+  display: flex;
+  align-items: center;
+  gap: var(--sm);
+  flex-wrap: wrap;
+}
+
+.modal-footer-danger {
+  margin-left: auto;
+  padding-left: var(--md);
+  border-left: 1px solid var(--border);
+}
+
+.modal-status-bar {
+  padding: var(--sm) var(--xl);
+  background: var(--accent-ghost);
+  border-top: 1px solid oklch(0.88 0.05 262);
+  flex-shrink: 0;
+  animation: slideUp 0.2s ease-out;
+}
+
+.modal-status-bar.is-error {
+  background: var(--danger-ghost);
+  border-top-color: oklch(0.85 0.08 25);
+}
+
+.modal-status-bar.is-success {
+  background: var(--success-ghost);
+  border-top-color: oklch(0.85 0.08 160);
+}
+
+.modal-status-content {
+  display: flex;
+  align-items: center;
+  gap: var(--md);
+}
+
+.modal-status-content .status {
+  flex: 1;
+  font-size: 13px;
+  color: var(--ink);
+  font-weight: 500;
+}
+
+.btn-link {
+  background: none;
+  border: none;
+  color: var(--accent);
+  font-size: 12px;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-family: inherit;
+  font-weight: 500;
+}
+
+.btn-link:hover {
+  color: var(--accent-hover);
+  text-decoration: underline;
+}
+
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(8px); }
+}
+
+/* ── Import Progress ── */
+.import-progress {
+  display: flex;
+  flex-direction: column;
+  gap: var(--sm);
+  padding: var(--md);
+}
+
+.import-progress-bar {
+  height: 8px;
+  background: var(--border);
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+.import-progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 4px;
+  transition: width 0.3s ease-out;
+}
+
+.import-progress-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 12px;
+  color: var(--ink-3);
+}
+
+/* ── Better Empty States ── */
+.empty-illustration {
+  text-align: center;
+  padding: var(--xxxl) var(--lg);
+}
+
+.empty-illustration .empty-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--ink-2);
+  margin-bottom: var(--sm);
+}
+
+.empty-illustration .empty-hint {
+  font-size: 12px;
+  color: var(--ink-3);
+  line-height: 1.6;
+}
+
+.empty-illustration .empty-action {
+  margin-top: var(--md);
+}
+
+/* ── Config Section Disabled ── */
+.config-section.is-disabled .form-row:not(:first-child):not(:nth-child(2)):not(:last-child) {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
+.config-section .form-row.is-dimmed {
+  opacity: 0.45;
+}
+
+.config-section .form-row.is-dimmed input,
+.config-section .form-row.is-dimmed select {
+  cursor: not-allowed;
+}
+
 /* ── Correction Hint ── */
 .correct-hint {
   font-size: 13px;
@@ -679,4 +878,117 @@ body {
   background: var(--success-ghost);
   border-radius: var(--r);
   line-height: 1.5;
+}
+
+
+/* ── v0.2 UI: 别名/版本/提示 标签样式 ── */
+
+.card-name {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px;
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 2px;
+}
+
+.main-nick {
+  font-weight: 700;
+  color: var(--ink);
+  font-size: 15px;
+}
+
+.main-marker {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--accent);
+  background: var(--accent-ghost);
+  border: 1px solid var(--accent);
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+
+.version-badge {
+  display: inline-flex;
+  align-items: center;
+  height: 16px;
+  padding: 0 6px;
+  font-size: 10px;
+  font-weight: 700;
+  border-radius: 3px;
+  letter-spacing: 0.04em;
+}
+.version-badge.v1 {
+  color: var(--warning);
+  background: var(--warning-ghost);
+  border: 1px solid var(--warning);
+}
+.version-badge.v2 {
+  color: var(--success);
+  background: var(--success-ghost);
+  border: 1px solid var(--success);
+}
+
+.alias-chips {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-left: 4px;
+}
+
+.alias-chip {
+  display: inline-flex;
+  align-items: center;
+  height: 18px;
+  padding: 0 7px;
+  font-size: 11px;
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: 9px;
+}
+
+.upgrade-hint, .distill-hint {
+  margin-top: 6px;
+  padding: 6px 10px;
+  font-size: 11px;
+  line-height: 1.4;
+  border-radius: var(--r);
+}
+
+.upgrade-hint {
+  color: var(--warning);
+  background: var(--warning-ghost);
+  border: 1px solid var(--warning);
+}
+
+.distill-hint {
+  color: var(--ink-3);
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+}
+
+.card-persona {
+  border-left: 3px solid transparent;
+}
+.card-persona.distilled {
+  border-left-color: var(--success);
+}
+
+.card-actions {
+  display: flex;
+  gap: var(--sm);
+  flex-shrink: 0;
+  margin-left: var(--lg);
+  align-items: center;
+}
+
+.card {
+  align-items: center;
 }
