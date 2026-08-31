@@ -253,7 +253,7 @@ function personaCard(p, isDistilled) {
         ? `<span class="version-badge v1" title="v1 旧格式,建议重新蒸馏以升级到 v2">v1</span>`
         : `<span class="version-badge v2" title="v2 格式(stats + 真实语料)">v2</span>`;
     const upgHint = isV1
-        ? `<div class="upgrade-hint">⚠️ v1 旧格式 — 点击"编辑人格" → "重新蒸馏" 升级到 v2</div>`
+        ? `<div class="upgrade-hint"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>v1 旧格式 — 点击"编辑人格" → "重新蒸馏" 升级到 v2</div>`
         : "";
     return `
     <div class="card card-persona ${isDistilled ? "distilled" : ""}" data-slug="${esc(p.slug)}" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">
@@ -270,7 +270,7 @@ function personaCard(p, isDistilled) {
       </div>
       <div class="card-actions">
         ${isDistilled
-            ? `<span class="distilled-badge">✓ 已蒸馏</span><button class="btn btn-primary persona-edit-btn">编辑人格</button>`
+            ? `<span class="distilled-badge"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 6 9 17l-5-5"/></svg>已蒸馏</span><button class="btn btn-outline persona-edit-btn">编辑人格</button>`
             : `<button class="btn btn-primary btn-distill" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">蒸馏</button>`}
       </div>
     </div>`;

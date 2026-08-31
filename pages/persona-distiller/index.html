@@ -9,12 +9,12 @@
 <body>
   <div class="app">
     <header class="header">
-      <h1>群友蒸馏师</h1>
+      <h1><svg class="icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 2v7.527a2 2 0 0 1-.211.896L4.72 20.55a1 1 0 0 0 .9 1.45h12.76a1 1 0 0 0 .9-1.45l-5.069-10.127A2 2 0 0 1 14 9.527V2"/><path d="M8.5 2h7"/><path d="M7 16h10"/></svg>群友蒸馏师</h1>
       <nav class="tabs">
-        <button class="tab active" data-tab="personas">群友列表</button>
-        <button class="tab" data-tab="nicknames">称呼管理</button>
-        <button class="tab" data-tab="config">群配置</button>
-        <button class="tab" data-tab="import">数据导入</button>
+        <button class="tab active" data-tab="personas"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>群友列表</button>
+        <button class="tab" data-tab="nicknames"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M12.586 2.586A2 2 0 0 0 11.172 2H4a2 2 0 0 0-2 2v7.172a2 2 0 0 0 .586 1.414l8.704 8.704a2.426 2.426 0 0 0 3.42 0l6.58-6.58a2.426 2.426 0 0 0 0-3.42z"/><circle cx="7.5" cy="7.5" r=".5" fill="currentColor"/></svg>称呼管理</button>
+        <button class="tab" data-tab="config"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><line x1="21" x2="14" y1="4" y2="4"/><line x1="10" x2="3" y1="4" y2="4"/><line x1="21" x2="12" y1="12" y2="12"/><line x1="8" x2="3" y1="12" y2="12"/><line x1="21" x2="16" y1="20" y2="20"/><line x1="12" x2="3" y1="20" y2="20"/><line x1="14" x2="14" y1="2" y2="6"/><line x1="8" x2="8" y1="10" y2="14"/><line x1="16" x2="16" y1="18" y2="22"/></svg>群配置</button>
+        <button class="tab" data-tab="import"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/></svg>数据导入</button>
       </nav>
     </header>
 
@@ -26,6 +26,7 @@
             <option value="">-- 请选择群 --</option>
           </select>
           <div class="toolbar-search">
+            <svg class="icon icon-sm icon-search" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" id="persona-search" class="input" placeholder="搜索:名字 / 别名 / QQ号" disabled />
           </div>
           <select id="persona-sort" class="select select-sm" disabled>
@@ -56,6 +57,7 @@
         <div class="toolbar">
           <button id="btn-nickname-add" class="btn btn-primary">+ 添加称呼</button>
           <div class="toolbar-search">
+            <svg class="icon icon-sm icon-search" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.3-4.3"/></svg>
             <input type="text" id="nickname-search" class="input" placeholder="搜索:QQ号 / 称呼" />
           </div>
           <span id="nickname-status" class="status"></span>
