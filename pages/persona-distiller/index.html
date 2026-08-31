@@ -44,6 +44,12 @@
           <div class="stat stat-notready"><span class="stat-num" id="stat-notready">0</span><span class="stat-label">未达标</span></div>
           <div class="stat stat-total"><span class="stat-num" id="stat-total">0</span><span class="stat-label">合计</span></div>
         </div>
+        <div id="status-filter" class="filter-bar" hidden>
+          <button class="chip active" data-filter="all" type="button">全部 <span class="chip-count">0</span></button>
+          <button class="chip" data-filter="distilled" type="button">已蒸馏 <span class="chip-count">0</span></button>
+          <button class="chip" data-filter="pending" type="button">可蒸馏 <span class="chip-count">0</span></button>
+          <button class="chip" data-filter="notready" type="button">未达标 <span class="chip-count">0</span></button>
+        </div>
         <div id="persona-list" class="card-list">
           <div class="empty-illustration">
             <div class="empty-title">请先选择一个群</div>

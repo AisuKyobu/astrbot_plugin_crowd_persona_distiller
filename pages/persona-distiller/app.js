@@ -8,6 +8,39 @@ const personaList = document.getElementById("persona-list");
 let personas = [];
 let importToken = "";
 
+// ---- Persisted state (localStorage) ----
+const LS_INITIAL_COUNT = "persona_initial_count_v1";
+const LS_SORT_PER_GROUP = "persona_sort_per_group_v1";
+const LS_FILTER = "persona_status_filter_v1";
+
+function lsGet(key, fallback) {
+    try { const v = localStorage.getItem(key); return v == null ? fallback : JSON.parse(v); }
+    catch { return fallback; }
+}
+function lsSet(key, val) {
+    try { localStorage.setItem(key, JSON.stringify(val)); } catch {}
+}
+
+// 首次见到 distilled slug 时的 message_count，用作「自首次增量」的基线
+function trackInitialCounts(distilledList) {
+    const map = lsGet(LS_INITIAL_COUNT, {});
+    let changed = false;
+    for (const p of distilledList) {
+        if (!p.slug) continue;
+        if (map[p.slug] == null) { map[p.slug] = p.message_count || 0; changed = true; }
+    }
+    if (changed) lsSet(LS_INITIAL_COUNT, map);
+    return map;
+}
+function initialCountOf(slug) {
+    const map = lsGet(LS_INITIAL_COUNT, {});
+    return map[slug];
+}
+
+// ---- State ----
+let _filterStatus = lsGet(LS_FILTER, "all");
+let _currentGroupId = "";
+
 // ---- Init ----
 
 await bridge.ready();
@@ -20,10 +53,36 @@ document.getElementById("btn-import-preview").addEventListener("click", previewI
 document.getElementById("btn-import-confirm").addEventListener("click", confirmImport);
 document.getElementById("group-filter").addEventListener("change", loadPersonas);
 document.getElementById("persona-search").addEventListener("input", applySearchSort);
-document.getElementById("persona-sort").addEventListener("change", applySearchSort);
+document.getElementById("persona-sort").addEventListener("change", () => {
+    if (_currentGroupId) {
+        const map = lsGet(LS_SORT_PER_GROUP, {});
+        map[_currentGroupId] = document.getElementById("persona-sort").value;
+        lsSet(LS_SORT_PER_GROUP, map);
+    }
+    applySearchSort();
+});
 document.getElementById("config-group-select").addEventListener("change", onConfigGroupChange);
 document.querySelectorAll("input[name='reply_mode']").forEach((r) => r.addEventListener("change", onModeChange));
 document.getElementById("btn-save-config").addEventListener("click", saveConfig);
+
+// Status filter chips
+document.getElementById("status-filter").addEventListener("click", (e) => {
+    const chip = e.target.closest(".chip");
+    if (!chip) return;
+    const f = chip.dataset.filter;
+    if (_filterStatus === f) return;
+    _filterStatus = f;
+    lsSet(LS_FILTER, f);
+    document.querySelectorAll("#status-filter .chip").forEach((c) =>
+        c.classList.toggle("active", c.dataset.filter === f)
+    );
+    applySearchSort();
+});
+
+// Sync chip active class on initial load
+document.querySelectorAll("#status-filter .chip").forEach((c) =>
+    c.classList.toggle("active", c.dataset.filter === _filterStatus)
+);
 
 // Modal bindings
 const modal = document.getElementById("persona-modal");
@@ -96,6 +155,8 @@ async function loadPersonas() {
 
         if (!gid) {
             _currentGUsers = [];
+            _currentGroupId = "";
+            document.getElementById("status-filter").hidden = true;
             personaList.innerHTML = '<div class="empty-illustration"><div class="empty-title">请先选择一个群</div><div class="empty-hint">选择群后将显示该群的群友列表、蒸馏状态和消息数</div></div>';
             statusText.textContent = `共 ${groups.size} 个群`;
             setSearchSortEnabled(false);
@@ -104,6 +165,12 @@ async function loadPersonas() {
 
         const gUsers = allUsers.filter(u => String(u.group_id) === gid);
         _currentGUsers = gUsers;
+        _currentGroupId = gid;
+        document.getElementById("status-filter").hidden = false;
+        // 恢复该群上次选的排序
+        const sortMap = lsGet(LS_SORT_PER_GROUP, {});
+        const sortSel = document.getElementById("persona-sort");
+        if (sortMap[gid]) sortSel.value = sortMap[gid];
         setSearchSortEnabled(true);
         applySearchSort();
     } catch (e) {
@@ -152,13 +219,35 @@ function applySearchSort() {
         }
     });
 
-    // 三分类
-    const distilled = list.filter((u) => u.distilled);
-    const pending = list.filter((u) => !u.distilled && u.reached_threshold);
-    const notReady = list.filter((u) => !u.distilled && !u.reached_threshold);
+    // 三分类（来自搜索后的列表，状态过滤前的全集）
+    const distilledAll = list.filter((u) => u.distilled);
+    const pendingAll = list.filter((u) => !u.distilled && u.reached_threshold);
+    const notReadyAll = list.filter((u) => !u.distilled && !u.reached_threshold);
 
-    renderStatsBar(distilled, pending, notReady, list.length, query, _currentGUsers.length);
+    // 跟踪蒸馏卡的初始 message_count（用于"自首次增量"）
+    if (distilledAll.length) trackInitialCounts(distilledAll);
+
+    // 应用状态过滤
+    let distilled = distilledAll, pending = pendingAll, notReady = notReadyAll;
+    if (_filterStatus === "distilled") { pending = []; notReady = []; }
+    else if (_filterStatus === "pending") { distilled = []; notReady = []; }
+    else if (_filterStatus === "notready") { distilled = []; pending = []; }
+
+    renderStatsBar(distilledAll, pendingAll, notReadyAll, list.length, query, _currentGUsers.length);
+    renderFilterChips(distilledAll.length, pendingAll.length, notReadyAll.length);
     renderPersonaList(distilled, pending, notReady, query, list.length, _currentGUsers.length);
+}
+
+function renderFilterChips(dCount, pCount, nCount) {
+    const total = dCount + pCount + nCount;
+    const chips = document.querySelectorAll("#status-filter .chip");
+    const map = { all: total, distilled: dCount, pending: pCount, notready: nCount };
+    chips.forEach((c) => {
+        const k = c.dataset.filter;
+        const n = map[k] || 0;
+        c.querySelector(".chip-count").textContent = n;
+        c.style.display = n === 0 && k !== "all" ? "none" : "";
+    });
 }
 
 function renderStatsBar(distilled, pending, notReady, shown, total, query) {
@@ -187,8 +276,10 @@ function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, 
     }
 
     if (pending.length) {
+        html.push(`<div class="pending-group">`);
         html.push(`<div class="section-title">待蒸馏群友（已达到最少消息数） <span class="section-count">${pending.length}</span></div>`);
         html.push(...pending.map((u) => distillableCard(u)));
+        html.push(`</div>`);
     }
 
     if (notReady.length) {
@@ -197,7 +288,13 @@ function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, 
     }
 
     if (!html.length) {
-        if (query && shown === 0 && total > 0) {
+        const filterActive = _filterStatus !== "all";
+        if (filterActive && total > 0) {
+            personaList.innerHTML = `<div class="empty-illustration">
+                <div class="empty-title">当前筛选下没有群友</div>
+                <div class="empty-hint">该群共 ${total} 人；点击「全部」查看，或调整搜索关键词</div>
+            </div>`;
+        } else if (query && shown === 0 && total > 0) {
             personaList.innerHTML = `<div class="empty-illustration">
                 <div class="empty-title">没找到匹配「${esc(query)}」的群友</div>
                 <div class="empty-hint">该群共有 ${total} 人;试试搜 QQ 号、主名或别名</div>
@@ -241,7 +338,6 @@ function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, 
 }
 
 function personaCard(p, isDistilled) {
-    const ts = (p.updated_at || p.last_distill_at || "").slice(0, 10);
     const gname = p.group_name ? `${esc(p.group_name)} (${esc(p.group_id)})` : `群 ${esc(p.group_id)}`;
     const aliases = p.aliases || [];
     const aliasHtml = aliases.length
@@ -255,6 +351,21 @@ function personaCard(p, isDistilled) {
     const upgHint = isV1
         ? `<div class="upgrade-hint"><svg class="icon icon-sm" viewBox="0 0 24 24" aria-hidden="true"><path d="m21.73 18-8-14a2 2 0 0 0-3.48 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"/><path d="M12 9v4"/><path d="M12 17h.01"/></svg>v1 旧格式 — 点击"编辑人格" → "重新蒸馏" 升级到 v2</div>`
         : "";
+
+    // 生命周期：上次蒸馏距今 + 累计 + 自首次增量
+    const distillAt = p.last_distill_at || p.updated_at || "";
+    let ageText = "—";
+    if (distillAt) {
+        const days = Math.max(0, Math.floor((Date.now() - new Date(distillAt).getTime()) / 86400000));
+        ageText = days === 0 ? "今天" : days === 1 ? "1 天前" : `${days} 天前`;
+    }
+    const tsDisplay = distillAt ? distillAt.slice(0, 10) : "—";
+    const initial = initialCountOf(p.slug);
+    const deltaPart = (initial != null && (p.message_count || 0) > initial)
+        ? ` · 自首次 <span class="delta-plus">+${(p.message_count || 0) - initial}</span> 条`
+        : "";
+    const lifeMeta = `上次蒸馏 ${tsDisplay} · ${ageText} · 累计 ${p.message_count || 0} 条${deltaPart}`;
+
     return `
     <div class="card card-persona ${isDistilled ? "distilled" : ""}" data-slug="${esc(p.slug)}" data-group="${esc(p.group_id)}" data-user="${esc(p.user_id)}" data-name="${esc(p.name)}">
       <div class="card-info">
@@ -263,9 +374,8 @@ function personaCard(p, isDistilled) {
           <span class="slug-tag">[${esc(p.slug)}]</span>
           ${aliasHtml}
         </div>
-        <div class="card-meta">
-          ${gname} · ${p.message_count || 0} 条 · ${ts || "—"}
-        </div>
+        <div class="card-meta">${gname}</div>
+        <div class="card-meta card-meta-sub">${lifeMeta}</div>
         ${upgHint}
       </div>
       <div class="card-actions">
@@ -288,6 +398,7 @@ function distillableCard(u) {
         : "";
     const minNeeded = 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
+    const remaining = Math.max(0, minNeeded - (u.message_count || 0));
     return `
     <div class="card${u.reached_threshold ? "" : " not-ready"}">
       <div class="card-info">
@@ -306,7 +417,7 @@ function distillableCard(u) {
       <div class="card-actions">
         ${u.reached_threshold
             ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(displayName)}">蒸馏</button>`
-            : `<button class="btn" disabled>需 ${minNeeded} 条</button>`}
+            : `<button class="btn" disabled title="还差 ${remaining} 条达到 ${minNeeded} 条阈值">还差 ${remaining} 条</button>`}
       </div>
     </div>`;
 }
