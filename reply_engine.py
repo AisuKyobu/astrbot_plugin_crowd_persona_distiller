@@ -18,6 +18,11 @@ _AT_NICK_QQ_PATTERN = re.compile(r"@(\S+?)\((\d+)\)")
 _AT_QQ_PATTERN = re.compile(r"@QQ(\d+)")
 _CQ_AT_PATTERN = re.compile(r"\[CQ:at,qq=(\d+)\]")
 
+# 回复文本清洗：合并多行为单行时，句末标点后直接拼接，其余用空格连接
+_SENTENCE_ENDINGS = "。！？!?，,；;、…—~：:"
+# 刚回复过的群在该时间窗内不再触发（防 @ 连刷/冷却配置为 0 时的连发）
+ANTI_BURST_SECONDS = 15
+
 
 class ReplyEngine:
     def __init__(
@@ -35,6 +40,7 @@ class ReplyEngine:
         self._persona_last_reply: dict[str, float] = {}
         self._self_id: str | None = None
         self._self_id_failed: bool = False
+        self._replying_groups: set[str] = set()
 
     # ---------- 概率触发 ----------
 
@@ -275,51 +281,74 @@ class ReplyEngine:
         is_cold: bool = False,
         latest_image_urls: list[str] | None = None,
     ):
-        personas = await self.storage.get_personas_by_group(group_id)
-        if not personas:
-            if event:
-                try:
-                    await event.send(
-                        __import__("astrbot.api.event", fromlist=["MessageChain"])
-                        .MessageChain()
-                        .message("当前还没有群友的人格信息哦，请先在web面板进行蒸馏~")
-                    )
-                except Exception:
-                    pass
+        # 防连发①：同一群同一时刻只允许生成一个回复。
+        # check+add 之间无 await，在事件循环内是原子的，能挡住并发触发（如连续两条消息先后命中概率）。
+        if group_id in self._replying_groups:
+            logger.info(f"[群友蒸馏] 群 {group_id} 已有回复生成中，跳过本次触发")
             return
-
-        result = await self.generate_reply(
-            group_id, is_cold=is_cold, latest_image_urls=latest_image_urls
-        )
-        if not result:
-            return
-
-        text, slug = result
-
-        # 解析 @昵称,转成 AstrBot At 消息链
-        chain = self._build_reply_chain(group_id, text)
-        if chain is None:
-            # 解析失败回退到纯文本
-            chain = self._make_plain_chain(text)
-
+        self._replying_groups.add(group_id)
         try:
-            if event:
-                await event.send(chain)
-            else:
-                from astrbot.api.event import MessageChain
-                # context.send_message expects MessageChain — convert if needed
-                if isinstance(chain, MessageChain):
-                    umo = f"aiocqhttp:group_message:{group_id}"
-                    await self.context.send_message(umo, chain)
-                else:
-                    umo = f"aiocqhttp:group_message:{group_id}"
-                    await self.context.send_message(umo, MessageChain().message(text))
-        except Exception as e:
-            logger.error(f"[群友蒸馏] 发送回复失败: {e}")
-            return
+            # 防连发②：刚回复过的群短时间内不再触发（覆盖 @ 连刷、冷却配置为 0 的场景）
+            state = await self.storage.get_group_state(group_id)
+            last_reply_at = (state or {}).get("last_bot_reply_at") or 0
+            if last_reply_at and time.time() - last_reply_at < ANTI_BURST_SECONDS:
+                logger.info(
+                    f"[群友蒸馏] 群 {group_id} {int(time.time() - last_reply_at)} 秒前刚回复过，跳过本次触发"
+                )
+                return
 
-        await self._record_reply(group_id, slug)
-        await self._maybe_change_name(group_id, slug, event)
+            personas = await self.storage.get_personas_by_group(group_id)
+            if not personas:
+                if event:
+                    try:
+                        await event.send(
+                            __import__("astrbot.api.event", fromlist=["MessageChain"])
+                            .MessageChain()
+                            .message("当前还没有群友的人格信息哦，请先在web面板进行蒸馏~")
+                        )
+                    except Exception:
+                        pass
+                return
+
+            result = await self.generate_reply(
+                group_id, is_cold=is_cold, latest_image_urls=latest_image_urls
+            )
+            if not result:
+                return
+
+            text, slug = result
+
+            # LLM 输出清洗：合并换行为单行（群聊一条消息就是一行）
+            text = self._sanitize_reply_text(text)
+            if not text:
+                return
+
+            # 解析 @昵称,转成 AstrBot At 消息链
+            chain = await self._build_reply_chain(group_id, text)
+            if chain is None:
+                # 解析失败回退到纯文本
+                chain = self._make_plain_chain(text)
+
+            try:
+                if event:
+                    await event.send(chain)
+                else:
+                    from astrbot.api.event import MessageChain
+                    # context.send_message expects MessageChain — convert if needed
+                    if isinstance(chain, MessageChain):
+                        umo = f"aiocqhttp:group_message:{group_id}"
+                        await self.context.send_message(umo, chain)
+                    else:
+                        umo = f"aiocqhttp:group_message:{group_id}"
+                        await self.context.send_message(umo, MessageChain().message(text))
+            except Exception as e:
+                logger.error(f"[群友蒸馏] 发送回复失败: {e}")
+                return
+
+            await self._record_reply(group_id, slug)
+            await self._maybe_change_name(group_id, slug, event)
+        finally:
+            self._replying_groups.discard(group_id)
 
     # ---------- 内部方法 ----------
 
@@ -348,6 +377,29 @@ class ReplyEngine:
         now = time.time()
         await self.storage.update_group_state(group_id, last_bot_reply_at=now)
         self._persona_last_reply[slug] = now
+
+    def _sanitize_reply_text(self, text: str) -> str:
+        """LLM 输出清洗：合并为单行。群聊里一条消息就是一行，多行输出会显得机械。
+
+        - 统一换行符后按行拆分、去空行
+        - 上一行以句末标点结尾 → 直接拼接（"哈哈。" + "笑死" → "哈哈。笑死"）
+        - 否则用空格连接（"哈哈哈" + "笑死我了" → "哈哈哈 笑死我了"）
+        - 压缩行内连续空格
+        """
+        if not text:
+            return text
+        text = text.replace("\r\n", "\n").replace("\r", "\n")
+        lines = [ln.strip() for ln in text.split("\n")]
+        lines = [ln for ln in lines if ln]
+        out = ""
+        for ln in lines:
+            if not out:
+                out = ln
+            elif out[-1] in _SENTENCE_ENDINGS:
+                out += ln
+            else:
+                out += f" {ln}"
+        return re.sub(r"[ \t]{2,}", " ", out).strip()
 
     async def _resolve_image_urls_to_base64(self, urls: list[str]) -> list[str]:
         """下载 URL 转 base64 data URI;失败的 URL 保留原样,由调用方决定是否丢掉。"""
@@ -656,11 +708,13 @@ class ReplyEngine:
     # ---------- @ 解析 + MessageChain 构建 ----------
 
 
-    def _build_reply_chain(self, group_id: str, text: str):
+    async def _build_reply_chain(self, group_id: str, text: str):
         """
         把 LLM 输出文本解析为 MessageChain。
         解析规则:
-          - @昵称 / @昵称(123)  → Comp.At(qq=...)  (通过 nickname_mappings 查 QQ)
+          - @昵称 / @昵称(123)  → Comp.At(qq=...)
+          - QQ 解析优先级: 显式QQ号 > nickname_mappings > 该群聊天记录的群昵称索引
+            （此前只查 nickname_mappings，没配置称呼的群友 @ 出来是纯文本，无法真正 @ 到人）
           - 其它文本 → Comp.Plain
         没有 @ 时直接返回纯文本链。
 
@@ -676,6 +730,14 @@ class ReplyEngine:
             logger.warning(f"[群友蒸馏] 导入 message_components 失败, 退化为纯文本: {e}")
             return self._make_plain_chain(text)
 
+        # 群昵称 → QQ 索引（覆盖没配置 nickname_mappings 的群友）
+        try:
+            name_index = await self.storage.get_group_name_to_uid(group_id)
+        except Exception as e:
+            logger.warning(f"[群友蒸馏] 加载群昵称索引失败: {e}")
+            name_index = {}
+        lower_index = {k.lower(): v for k, v in name_index.items()}
+
         # 切分:按 @ 提及分段
         parts: list[tuple[str, str]] = []
         last_end = 0
@@ -685,10 +747,13 @@ class ReplyEngine:
             nick = m.group(1).strip()
             explicit_qq = m.group(2)
             qq = explicit_qq or self._resolve_nick_to_qq(group_id, nick)
+            if not qq:
+                qq = name_index.get(nick) or lower_index.get(nick.lower())
             if qq:
                 parts.append(("at", str(qq)))
             else:
-                # 解析不到,原样保留 @昵称
+                # 全部路径都解析不到,原样保留 @昵称
+                logger.debug(f"[群友蒸馏] @昵称 {nick!r} 无法解析为 QQ，按纯文本保留")
                 parts.append(("plain", m.group(0)))
             last_end = m.end()
         if last_end < len(text):

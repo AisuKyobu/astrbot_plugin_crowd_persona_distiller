@@ -239,6 +239,26 @@ class GroupFriendStorage:
         )
         await self._conn.commit()
 
+    async def get_group_name_to_uid(self, group_id: str) -> dict[str, str]:
+        """该群所有出现过的群昵称 → QQ 号（用于把 LLM 输出的 @昵称 解析成真正的 At）。
+
+        同一用户改过昵称会产生多行（GROUP BY user_id, user_name），
+        按 MAX(timestamp) 倒序遍历，同名冲突时保留最近发言用户的映射。
+        """
+        cursor = await self._conn.execute(
+            "SELECT user_id, user_name, MAX(timestamp) AS latest "
+            "FROM messages WHERE group_id = ? "
+            "GROUP BY user_id, user_name ORDER BY latest DESC",
+            (group_id,),
+        )
+        rows = await cursor.fetchall()
+        index: dict[str, str] = {}
+        for r in rows:
+            name = (r["user_name"] or "").strip()
+            if name and name not in index:
+                index[name] = r["user_id"]
+        return index
+
     async def list_distillable_users(self, min_messages: int = 0) -> list[dict]:
         """返回所有群的所有用户及蒸馏状态"""
         cursor = await self._conn.execute(
