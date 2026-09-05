@@ -96,6 +96,13 @@ document.getElementById("modal-correct").addEventListener("click", openCorrectMo
 document.getElementById("modal-status-dismiss").addEventListener("click", () => {
     document.getElementById("modal-status-bar").style.display = "none";
 });
+// 编辑器 Ctrl/Cmd+S 保存
+document.getElementById("modal-editor").addEventListener("keydown", (e) => {
+    if ((e.ctrlKey || e.metaKey) && (e.key === "s" || e.key === "S")) {
+        e.preventDefault();
+        savePersonaContent();
+    }
+});
 
 // Correct modal bindings
 const correctModal = document.getElementById("correct-modal");
@@ -103,6 +110,17 @@ document.getElementById("correct-modal-close").addEventListener("click", closeCo
 document.getElementById("correct-modal-cancel").addEventListener("click", closeCorrectModal);
 correctModal.addEventListener("click", (e) => { if (e.target === correctModal) closeCorrectModal(); });
 document.getElementById("correct-modal-submit").addEventListener("click", submitCorrect);
+
+// Confirm dialog bindings
+document.getElementById("confirm-ok").addEventListener("click", () => settleConfirm(true));
+document.getElementById("confirm-cancel").addEventListener("click", () => settleConfirm(false));
+document.getElementById("confirm-close").addEventListener("click", () => settleConfirm(false));
+document.getElementById("confirm-modal").addEventListener("click", (e) => {
+    if (e.target === document.getElementById("confirm-modal")) settleConfirm(false);
+});
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") settleConfirm(false);
+});
 
 // Nickname modal bindings
 const nickModal = document.getElementById("nickname-modal");
@@ -277,7 +295,7 @@ function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, 
 
     if (pending.length) {
         html.push(`<div class="pending-group">`);
-        html.push(`<div class="section-title">待蒸馏群友（已达到最少消息数） <span class="section-count">${pending.length}</span></div>`);
+        html.push(`<div class="section-title section-title-row"><span>待蒸馏群友（已达到最少消息数） <span class="section-count">${pending.length}</span></span><span class="section-actions"><label class="batch-select-label"><input type="checkbox" class="batch-select-all"> 全选</label><button class="btn btn-outline btn-batch-distill" disabled>蒸馏选中 (0)</button></span></div>`);
         html.push(...pending.map((u) => distillableCard(u)));
         html.push(`</div>`);
     }
@@ -315,6 +333,20 @@ function renderPersonaList(distilled, pending, notReady, query = "", shown = 0, 
             doDistill(btn.dataset.group, btn.dataset.user, btn.dataset.name, btn)
         );
     });
+
+    document.querySelectorAll(".btn-batch-distill").forEach((btn) =>
+        btn.addEventListener("click", runBatchDistill)
+    );
+    document.querySelectorAll(".batch-select-all").forEach((cb) =>
+        cb.addEventListener("change", (e) => {
+            const scope = e.target.closest(".pending-group") || document;
+            scope.querySelectorAll(".batch-check").forEach((c) => (c.checked = e.target.checked));
+            updateBatchButton();
+        })
+    );
+    document.querySelectorAll(".batch-check").forEach((cb) =>
+        cb.addEventListener("change", updateBatchButton)
+    );
 
     document.querySelectorAll(".card-persona").forEach((card) => {
         card.addEventListener("click", (e) => {
@@ -396,7 +428,7 @@ function distillableCard(u) {
     const aliasHtml = (u.aliases && u.aliases.length)
         ? `<span class="alias-chips">${u.aliases.map(a => `<span class="alias-chip">${esc(a)}</span>`).join("")}</span>`
         : "";
-    const minNeeded = 50;
+    const minNeeded = u.min_messages || 50;
     const bar = Math.min(100, Math.round((u.message_count / minNeeded) * 100));
     const remaining = Math.max(0, minNeeded - (u.message_count || 0));
     return `
@@ -416,35 +448,107 @@ function distillableCard(u) {
       </div>
       <div class="card-actions">
         ${u.reached_threshold
-            ? `<button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(displayName)}">蒸馏</button>`
+            ? `<label class="batch-check-label" title="勾选后可批量蒸馏"><input type="checkbox" class="batch-check" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(displayName)}"></label><button class="btn btn-primary btn-distill" data-group="${esc(u.group_id)}" data-user="${esc(u.user_id)}" data-name="${esc(displayName)}">蒸馏</button>`
             : `<button class="btn" disabled title="还差 ${remaining} 条达到 ${minNeeded} 条阈值">还差 ${remaining} 条</button>`}
       </div>
     </div>`;
 }
 
-let _distilling = false;
+let _distillBusy = false;
+const DISTILL_POLL_MS = 1500;
+const DISTILL_MAX_WAIT_MS = 15 * 60 * 1000;
+
+// 蒸馏为后台任务：POST /distill 返回 job_id，轮询 /distill/status/<job_id> 直到完成
+async function waitDistillJob(jobId) {
+    const start = Date.now();
+    while (true) {
+        const job = await bridge.apiGet(`distill/status/${jobId}`);
+        if (job.status === "done") return job;
+        if (job.status === "error") throw new Error(job.error || "蒸馏失败，请查看服务端日志");
+        if (Date.now() - start > DISTILL_MAX_WAIT_MS) {
+            throw new Error("蒸馏仍在进行中（已超过 15 分钟），请稍后刷新列表查看结果");
+        }
+        await new Promise((r) => setTimeout(r, DISTILL_POLL_MS));
+    }
+}
+
+function updateBatchButton() {
+    const btn = document.querySelector(".btn-batch-distill");
+    if (!btn) return;
+    const n = document.querySelectorAll(".batch-check:checked").length;
+    btn.textContent = `蒸馏选中 (${n})`;
+    btn.disabled = n === 0 || _distillBusy;
+}
+
+function setDistillControlsDisabled(disabled) {
+    document.querySelectorAll(".btn-distill").forEach((b) => { b.disabled = disabled; });
+    document.querySelectorAll(".batch-check, .batch-select-all").forEach((c) => { c.disabled = disabled; });
+    updateBatchButton();
+}
 
 async function doDistill(groupId, userId, userName, btn) {
-    if (_distilling) return;
-    _distilling = true;
-    const allButtons = document.querySelectorAll(".btn-distill");
-    allButtons.forEach((b) => { b.disabled = true; b.textContent = "蒸馏中..."; });
-    if (btn) btn.textContent = "处理中...";
+    if (_distillBusy) return;
+    _distillBusy = true;
+    setDistillControlsDisabled(true);
+    if (btn) btn.textContent = "蒸馏中...";
 
     showDistillBanner(`<span class="banner-loading">蒸馏中...</span> 正在分析 ${esc(userName)} 的聊天记录`);
     try {
-        const result = await bridge.apiPost("distill", {
+        const started = await bridge.apiPost("distill", {
             group_id: groupId,
             user_id: userId,
             user_name: userName,
         });
-        showDistillBanner(`蒸馏完成！群友 [${esc(result.slug)}] ${esc(result.name)} 已生成`, true);
+        const job = await waitDistillJob(started.job_id);
+        showDistillBanner(`蒸馏完成！群友 [${esc(job.slug)}] ${esc(job.name || userName)} 已生成`, true);
         loadPersonas();
     } catch (e) {
         showDistillBanner(`蒸馏失败：${esc(e.message)}`, false);
     } finally {
-        _distilling = false;
+        _distillBusy = false;
+        setDistillControlsDisabled(false);
+        if (btn && btn.isConnected) btn.textContent = "蒸馏";
     }
+}
+
+// 批量蒸馏：串行处理勾选的可蒸馏群友，每个任务走同一套后台 job 流程
+async function runBatchDistill() {
+    if (_distillBusy) return;
+    const checked = Array.from(document.querySelectorAll(".batch-check:checked"));
+    if (!checked.length) return;
+    _distillBusy = true;
+    setDistillControlsDisabled(true);
+    const total = checked.length;
+    let ok = 0;
+    let fail = 0;
+
+    for (let i = 0; i < checked.length; i++) {
+        const { group, user, name } = checked[i].dataset;
+        const cardBtn = document.querySelector(`.btn-distill[data-user="${user}"][data-group="${group}"]`);
+        if (cardBtn) cardBtn.textContent = `蒸馏中 (${i + 1}/${total})`;
+        showDistillBanner(`<span class="banner-loading">批量蒸馏</span> ${i}/${total} 完成 · 正在蒸馏 ${esc(name || user)}`);
+        try {
+            const started = await bridge.apiPost("distill", {
+                group_id: group,
+                user_id: user,
+                user_name: name,
+            });
+            await waitDistillJob(started.job_id);
+            ok++;
+            if (cardBtn) { cardBtn.textContent = "✓ 完成"; cardBtn.classList.add("batch-done"); }
+        } catch (e) {
+            fail++;
+            if (cardBtn) { cardBtn.textContent = "✗ 失败"; cardBtn.title = e.message; cardBtn.classList.add("batch-fail"); }
+        }
+    }
+
+    if (fail) {
+        showDistillBanner(`批量蒸馏结束：成功 ${ok} 个，失败 ${fail} 个（失败原因见对应按钮提示）`, false);
+    } else {
+        showDistillBanner(`批量蒸馏完成：共 ${ok} 个群友已生成人格`, true);
+    }
+    _distillBusy = false;
+    loadPersonas();
 }
 
 function showDistillBanner(msg, success = null) {
@@ -459,12 +563,63 @@ function showDistillBanner(msg, success = null) {
     if (success === undefined) setTimeout(() => div.remove(), 5000);
 }
 
+// ---- Confirm dialog（应用内确认弹窗，替代原生 confirm）----
+
+let _confirmResolve = null;
+
+function showConfirm({ title = "确认操作", message = "", okText = "确认", danger = false } = {}) {
+    return new Promise((resolve) => {
+        _confirmResolve = resolve;
+        const overlay = document.getElementById("confirm-modal");
+        document.getElementById("confirm-title").textContent = title;
+        document.getElementById("confirm-message").innerHTML = message;
+        const okBtn = document.getElementById("confirm-ok");
+        okBtn.textContent = okText;
+        okBtn.className = danger ? "btn btn-danger" : "btn btn-save";
+        overlay.style.display = "flex";
+        okBtn.focus();
+    });
+}
+
+function settleConfirm(result) {
+    const overlay = document.getElementById("confirm-modal");
+    if (overlay.style.display === "none") return;
+    overlay.style.display = "none";
+    if (_confirmResolve) {
+        _confirmResolve(result);
+        _confirmResolve = null;
+    }
+}
+
 // ---- Persona Modal ----
 
 let _modalSlug = "";
 let _modalGroupId = "";
 let _modalUserId = "";
 let _modalName = "";
+let _modalOriginal = "";   // 加载时的 persona 内容，用于脏数据检测
+let _modalBusy = false;    // 弹窗内有操作进行中时禁用其余按钮，避免竞态
+
+function modalDirty() {
+    return document.getElementById("modal-editor").value !== _modalOriginal;
+}
+
+function setModalBusy(busy) {
+    _modalBusy = busy;
+    ["modal-save", "modal-redistill", "modal-incremental", "modal-correct", "modal-delete"].forEach((id) => {
+        document.getElementById(id).disabled = busy;
+    });
+}
+
+// 编辑器有未保存修改时，覆盖类操作（关闭/重新蒸馏/增量更新/修正）前的统一确认
+function confirmDiscardEdits(action) {
+    return showConfirm({
+        title: "放弃未保存的修改？",
+        message: `编辑器中有未保存的修改，${action}后将丢失。`,
+        okText: "放弃修改",
+        danger: true,
+    });
+}
 
 async function openModal(slug, groupId, userId, name) {
     _modalSlug = slug;
@@ -475,12 +630,14 @@ async function openModal(slug, groupId, userId, name) {
     document.getElementById("modal-title").textContent = `${esc(name)} (${esc(slug)})`;
     document.getElementById("modal-meta").textContent = "加载中...";
     document.getElementById("modal-editor").value = "";
+    _modalOriginal = "";
     document.getElementById("persona-modal").style.display = "flex";
     document.getElementById("modal-status-bar").style.display = "none";
 
     try {
         const data = await bridge.apiGet(`persona/${slug}`);
         document.getElementById("modal-editor").value = data.content || "";
+        _modalOriginal = data.content || "";
         const meta = data.meta || {};
         const mc = meta.message_count || 0;
         const ts = (meta.last_distill_at || "").slice(0, 10);
@@ -506,7 +663,12 @@ async function openModal(slug, groupId, userId, name) {
     }
 }
 
-function closeModal() {
+async function closeModal(force = false) {
+    if (!force && _modalBusy) return; // 操作进行中不允许关闭，避免结果返回后弹窗状态错乱
+    if (!force && modalDirty()) {
+        const ok = await confirmDiscardEdits("关闭弹窗");
+        if (!ok) return;
+    }
     document.getElementById("persona-modal").style.display = "none";
     document.getElementById("modal-status-bar").style.display = "none";
 }
@@ -521,37 +683,48 @@ function showModalStatus(msg, tone = "info") {
 }
 
 async function savePersonaContent() {
-    if (!_modalSlug) return;
+    if (!_modalSlug || _modalBusy) return;
+    setModalBusy(true);
     showModalStatus("保存中...", "info");
     try {
         await bridge.apiPost(`persona/${_modalSlug}/save`, {
             content: document.getElementById("modal-editor").value,
         });
+        _modalOriginal = document.getElementById("modal-editor").value;
         showModalStatus("已保存", "success");
     } catch (e) {
         showModalStatus(`保存失败: ${esc(e.message)}`, "error");
+    } finally {
+        setModalBusy(false);
     }
 }
 
 async function redistillFromModal() {
-    if (!_modalUserId || !_modalGroupId) return;
+    if (!_modalUserId || !_modalGroupId || _modalBusy) return;
+    if (modalDirty() && !(await confirmDiscardEdits("重新蒸馏"))) return;
+    setModalBusy(true);
     showModalStatus("蒸馏中...", "info");
     try {
-        const result = await bridge.apiPost("distill", {
+        const started = await bridge.apiPost("distill", {
             group_id: _modalGroupId,
             user_id: _modalUserId,
             user_name: _modalName,
         });
-        showModalStatus(`蒸馏完成: ${esc(result.name)}`, "success");
-        await openModal(result.slug, _modalGroupId, _modalUserId, result.name);
+        const job = await waitDistillJob(started.job_id);
+        showModalStatus(`蒸馏完成: ${esc(job.name || _modalName)}`, "success");
+        await openModal(job.slug || _modalSlug, _modalGroupId, _modalUserId, job.name || _modalName);
         loadPersonas();
     } catch (e) {
         showModalStatus(`蒸馏失败: ${esc(e.message)}`, "error");
+    } finally {
+        setModalBusy(false);
     }
 }
 
 async function incrementalFromModal() {
-    if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
+    if (!_modalSlug || !_modalUserId || !_modalGroupId || _modalBusy) return;
+    if (modalDirty() && !(await confirmDiscardEdits("增量更新"))) return;
+    setModalBusy(true);
     showModalStatus("增量更新中...", "info");
     try {
         const result = await bridge.apiPost("persona/incremental", {
@@ -567,12 +740,21 @@ async function incrementalFromModal() {
         }
     } catch (e) {
         showModalStatus(`增量更新失败: ${esc(e.message)}`, "error");
+    } finally {
+        setModalBusy(false);
     }
 }
 
 async function deleteFromModal() {
-    if (!_modalSlug || !_modalUserId || !_modalGroupId) return;
-    if (!confirm(`确定删除 ${esc(_modalName)} 的人格和所有聊天记录？此操作不可恢复。`)) return;
+    if (!_modalSlug || !_modalUserId || !_modalGroupId || _modalBusy) return;
+    const ok = await showConfirm({
+        title: "删除人格",
+        message: `确定删除 <b>${esc(_modalName)}</b> 的人格和所有聊天记录？<br><span class="confirm-warn">此操作不可恢复。</span>`,
+        okText: "删除",
+        danger: true,
+    });
+    if (!ok) return;
+    setModalBusy(true);
     showModalStatus("删除中...", "info");
     try {
         await bridge.apiPost("persona/delete", {
@@ -580,10 +762,12 @@ async function deleteFromModal() {
             group_id: _modalGroupId,
             user_id: _modalUserId,
         });
-        closeModal();
+        closeModal(true);
         loadPersonas();
     } catch (e) {
         showModalStatus(`删除失败: ${esc(e.message)}`, "error");
+    } finally {
+        setModalBusy(false);
     }
 }
 
@@ -591,8 +775,10 @@ async function deleteFromModal() {
 
 let _correcting = false;
 
-function openCorrectModal() {
-    if (!_modalSlug) return;
+async function openCorrectModal() {
+    if (!_modalSlug || _modalBusy) return;
+    // 修正提交后弹窗会重新加载 persona，未保存的编辑会丢失
+    if (modalDirty() && !(await confirmDiscardEdits("修正并刷新"))) return;
     document.getElementById("correct-modal-title").textContent = `修正人格 - ${esc(_modalName)} (${esc(_modalSlug)})`;
     document.getElementById("correct-modal-text").value = "";
     document.getElementById("correct-modal-status").textContent = "";
@@ -690,13 +876,21 @@ async function previewImport() {
         // 自动设置聊天类型
         document.querySelector(`input[name="chat_type"][value="${detectedChatType}"]`).checked = true;
 
-        // 自动填充并锁定 group_id
+        // 自动填充 group_id；识别失败时保持可编辑，让用户手动补填
         const groupIdInput = document.getElementById("import-group-id");
-        groupIdInput.value = gid;
-        groupIdInput.readOnly = true;
+        if (gid) {
+            groupIdInput.value = gid;
+            groupIdInput.readOnly = true;
+        } else {
+            groupIdInput.value = "";
+            groupIdInput.readOnly = false;
+        }
 
         const typeLabel = detectedChatType === "private" ? "私聊" : "群聊";
-        let html = `<p><strong>${typeLabel}</strong> · ${gname ? esc(gname) + " · " : ""}解析到 <strong>${total}</strong> 条消息，<strong>${users.length}</strong> 个用户</p>`;
+        const gidWarn = gid
+            ? ""
+            : `<div class="empty-hint" style="color:var(--danger)">未能从文件中自动识别${typeLabel === "私聊" ? "对方 QQ" : "群号"}，请手动填写上方输入框后再确认导入</div>`;
+        let html = `<p><strong>${typeLabel}</strong> · ${gname ? esc(gname) + " · " : ""}解析到 <strong>${total}</strong> 条消息，<strong>${users.length}</strong> 个用户</p>${gidWarn}`;
 
         if (users.length > 0) {
             html += '<div class="user-checkboxes">';
@@ -988,7 +1182,13 @@ async function saveNicknameFromModal() {
 }
 
 async function deleteNickname(uid, name) {
-    if (!confirm(`确定删除 ${esc(name)} (${esc(uid)}) 的称呼映射？`)) return;
+    const ok = await showConfirm({
+        title: "删除称呼",
+        message: `确定删除 <b>${esc(name)}</b> (${esc(uid)}) 的称呼映射？`,
+        okText: "删除",
+        danger: true,
+    });
+    if (!ok) return;
     try {
         await bridge.apiPost("nickname/delete", { user_id: uid });
         loadNicknames();

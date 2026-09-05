@@ -8,7 +8,10 @@ from .reply_engine import ReplyEngine
 from .storage import GroupFriendStorage
 
 import base64 as _base64
+import asyncio
 import os
+import time
+import uuid
 from pathlib import Path
 from astrbot.core.utils.astrbot_path import get_astrbot_data_path
 
@@ -34,6 +37,8 @@ class GroupFriendPlugin(Star):
         self.storage = GroupFriendStorage()
         self.persona_mgr = PersonaManager(context, self.storage, config)
         self.reply_engine: ReplyEngine | None = None
+        self._distill_jobs: dict[str, dict] = {}
+        self._distill_tasks: set[asyncio.Task] = set()
 
     async def initialize(self):
         await self.storage.init_db()
@@ -273,7 +278,13 @@ class GroupFriendPlugin(Star):
                 f"{route_prefix}/personas", self._api_list_personas, ["GET"], "列出所有 Persona"
             )
             self.context.register_web_api(
-                f"{route_prefix}/distill", self._api_distill, ["POST"], "触发蒸馏"
+                f"{route_prefix}/distill", self._api_distill, ["POST"], "触发蒸馏（后台任务）"
+            )
+            self.context.register_web_api(
+                f"{route_prefix}/distill/status/<job_id>",
+                self._api_distill_status,
+                ["GET"],
+                "查询蒸馏任务状态",
             )
             self.context.register_web_api(
                 f"{route_prefix}/persona/<slug>", self._api_get_persona, ["GET"], "获取 Persona 内容"
@@ -375,14 +386,65 @@ class GroupFriendPlugin(Star):
         if count < min_msgs:
             return _err(f"消息不足（当前 {count} 条，需 ≥{min_msgs} 条），请让该群友多发言或降低最低消息数阈值")
 
+        # 同步校验通过后转后台任务执行，避免长 LLM 调用阻塞 HTTP 请求导致前端反馈丢失
+        job_id = uuid.uuid4().hex
+        self._distill_jobs[job_id] = {
+            "job_id": job_id,
+            "status": "running",
+            "group_id": group_id,
+            "user_id": user_id,
+            "user_name": user_name,
+            "slug": "",
+            "name": user_name,
+            "error": "",
+            "created_at": time.time(),
+            "finished_at": None,
+        }
+        self._prune_distill_jobs()
+        task = asyncio.create_task(self._run_distill_job(job_id, group_id, user_id, user_name))
+        self._distill_tasks.add(task)  # 持强引用，防止长任务被 GC 中断
+        task.add_done_callback(self._distill_tasks.discard)
+        return _json({"job_id": job_id, "status": "queued"})
+
+    async def _run_distill_job(self, job_id: str, group_id: str, user_id: str, user_name: str):
+        job = self._distill_jobs.get(job_id)
+        if not job:
+            return
         try:
             slug = await self.persona_mgr.distill(group_id, user_id, user_name)
             if slug:
-                return _json({"slug": slug, "name": user_name})
-            return _err("蒸馏失败：LLM 分析出错，请查看服务端日志")
+                job.update({"status": "done", "slug": slug, "name": user_name})
+            else:
+                job.update({"status": "error", "error": "LLM 分析出错，请查看服务端日志"})
         except Exception as e:
             logger.error(f"[群友蒸馏] distill exception: {e}", exc_info=True)
-            return _err(f"蒸馏异常：{e}")
+            job.update({"status": "error", "error": f"蒸馏异常：{e}"})
+        finally:
+            job["finished_at"] = time.time()
+
+    async def _api_distill_status(self, job_id: str):
+        job = self._distill_jobs.get(job_id)
+        if not job:
+            return _err("任务不存在或已过期，请刷新列表查看结果", status_code=404)
+        return _json(job)
+
+    def _prune_distill_jobs(self, max_jobs: int = 50, ttl_seconds: int = 1800):
+        now = time.time()
+        expired = [
+            jid
+            for jid, j in self._distill_jobs.items()
+            if j.get("finished_at") and now - j["finished_at"] > ttl_seconds
+        ]
+        for jid in expired:
+            self._distill_jobs.pop(jid, None)
+        if len(self._distill_jobs) > max_jobs:
+            # 超量时优先丢弃最早结束的已完结任务
+            finished = sorted(
+                (jid for jid, j in self._distill_jobs.items() if j.get("finished_at")),
+                key=lambda jid: self._distill_jobs[jid]["finished_at"],
+            )
+            for jid in finished[: len(self._distill_jobs) - max_jobs]:
+                self._distill_jobs.pop(jid, None)
 
     async def _api_get_persona(self, slug: str):
         content = self.persona_mgr.load_persona(slug)
@@ -715,6 +777,7 @@ class GroupFriendPlugin(Star):
                 "slug": slug,
                 "last_distill_at": p.get("last_distill_at") or "",
                 "reached_threshold": u["message_count"] >= min_messages,
+                "min_messages": min_messages,
                 "version": p.get("version", ""),
                 "schema": p.get("schema", ""),
             })

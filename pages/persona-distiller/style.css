@@ -1205,6 +1205,66 @@ body {
   align-items: center;
 }
 
+/* ── 批量蒸馏 ── */
+.section-title-row {
+  flex-wrap: wrap;
+}
+
+.section-actions {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.batch-select-label,
+.batch-check-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  font-weight: 400;
+  letter-spacing: normal;
+  text-transform: none;
+  color: var(--ink-3);
+  cursor: pointer;
+  user-select: none;
+}
+
+.batch-select-label input[type="checkbox"],
+.batch-check-label input[type="checkbox"] {
+  accent-color: var(--accent);
+}
+
+.btn-distill.batch-done {
+  color: var(--success);
+  border-color: var(--success);
+  background: var(--surface);
+}
+
+.btn-distill.batch-fail {
+  color: var(--danger);
+  border-color: var(--danger);
+  background: var(--surface);
+}
+
+/* ── 确认弹窗 ── */
+#confirm-modal {
+  z-index: 1100; /* 需盖过 persona/修正弹窗 */
+}
+
+.confirm-message {
+  margin: 0;
+  color: var(--ink-2);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.confirm-warn {
+  color: var(--danger);
+  font-size: 12px;
+}
+
 /* ── Reduced motion ── */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
